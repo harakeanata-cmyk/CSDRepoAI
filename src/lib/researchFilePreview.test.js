@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { getResearchDownloadUrl, getResearchFileType, isResearchStorageUrl, normalizeResearchFileUrls } from "./researchFilePreview.js";
+import { openResearchPreviewInNewTab } from "../services/paperPreview.js";
 
 const storageUrl = "https://repo.supabase.co";
 
@@ -35,4 +36,33 @@ test("normalizes legacy page URL arrays without changing their order and handles
   assert.deepEqual(normalizeResearchFileUrls(pages), pages);
   assert.deepEqual(normalizeResearchFileUrls(null), []);
   assert.deepEqual(normalizeResearchFileUrls("broken-file-url"), ["broken-file-url"]);
+});
+
+test("opens the app preview route instead of creating an about:blank document", () => {
+  const previousWindow = globalThis.window;
+  const values = new Map();
+  let openedUrl;
+  globalThis.window = {
+    location: { origin: "https://csdrepoai.example" },
+    sessionStorage: {
+      setItem: (key, value) => values.set(key, value),
+      removeItem: (key) => values.delete(key),
+    },
+    open: (url, target) => {
+      openedUrl = new URL(url);
+      assert.equal(target, "_blank");
+      return {};
+    },
+  };
+
+  try {
+    const urls = ["page-1.png", "page-2.webp"];
+    openResearchPreviewInNewTab({ urls, title: "Legacy paper", label: "manuscript" });
+    assert.equal(openedUrl.pathname, "/paper-preview");
+    const key = openedUrl.searchParams.get("key");
+    assert.deepEqual(JSON.parse(values.get(key)).urls, urls);
+  } finally {
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+  }
 });

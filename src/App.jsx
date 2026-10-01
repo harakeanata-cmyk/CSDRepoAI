@@ -22,6 +22,7 @@ import AcademicYearManagement from "./pages/admin/AcademicYearManagement";
 import OCRScan from "./pages/admin/OCRScan";
 import ReviewApproval from "./pages/admin/ReviewApproval";
 import Settings from "./pages/Settings";
+import ResearchDocumentPreview from "./pages/ResearchDocumentPreview";
 
 function PersistentOCRScan() {
   const { pathname } = useLocation();
@@ -41,6 +42,7 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
+          <Route path="/paper-preview" element={<ResearchDocumentPreview />} />
           <Route path="/login" element={<Login />} />
           <Route path="/redirect" element={<RoleRedirect />} />
           <Route path="/" element={<Login />} />
