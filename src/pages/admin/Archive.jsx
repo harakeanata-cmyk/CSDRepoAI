@@ -110,6 +110,7 @@ export default function Archive() {
                         style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, fontWeight: 600, color: "var(--brass-700)", background: "none", border: 0, cursor: "pointer", padding: 0, textDecoration: "underline" }}
                       >
                         <FileText size={13} /> View manuscript
+                        <span className="archive-file-format">{getFileFormat(getResearchFileUrls(p.file_url))}</span>
                       </button>
                     ) : (
                       <span style={{ color: "var(--ink-300)" }}>—</span>
@@ -122,6 +123,7 @@ export default function Archive() {
                         style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, fontWeight: 600, color: "var(--brass-700)", textDecoration: "underline" }}
                       >
                         <FolderOpen size={13} /> View source code
+                        <span className="archive-file-format">{getFileFormat(getResearchFileUrls(p.source_code_url))}</span>
                       </a>
                     )}
                     {getResearchFileUrls(p.ieee_paper_url).length > 0 && (
@@ -132,6 +134,7 @@ export default function Archive() {
                         style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, fontWeight: 600, color: "var(--brass-700)", textDecoration: "underline" }}
                       >
                         <FileText size={13} /> View IEEE short paper
+                        <span className="archive-file-format">{getFileFormat(getResearchFileUrls(p.ieee_paper_url))}</span>
                       </a>
                     )}
                   </div>
@@ -277,4 +280,36 @@ export default function Archive() {
       )}
     </Layout>
   );
+}
+
+const FILE_FORMATS = {
+  doc: "DOC",
+  docx: "DOCX",
+  pdf: "PDF",
+  odt: "ODT",
+  rtf: "RTF",
+  txt: "TXT",
+  csv: "CSV",
+  xls: "XLS",
+  xlsx: "XLSX",
+  ppt: "PPT",
+  pptx: "PPTX",
+  zip: "ZIP",
+  rar: "RAR",
+  jpg: "JPG",
+  jpeg: "JPEG",
+  png: "PNG",
+};
+
+function getFileFormat(urls) {
+  if (urls.length > 1) return "PDF";
+  const rawUrl = String(urls[0] || "").split(/[?#]/, 1)[0];
+  let path = rawUrl;
+  try {
+    path = decodeURIComponent(new URL(rawUrl).pathname);
+  } catch {
+    try { path = decodeURIComponent(rawUrl); } catch { /* Keep the undecoded path. */ }
+  }
+  const extension = path.match(/\.([a-z0-9]{1,8})$/i)?.[1]?.toLowerCase();
+  return FILE_FORMATS[extension] || extension?.toUpperCase() || "FILE";
 }
