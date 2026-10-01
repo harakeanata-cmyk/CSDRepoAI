@@ -1548,6 +1548,61 @@ a.card:hover,
 }
 
 /* Analytics summary cards */
+.analytics-filter-bar {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 18px 0 22px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.analytics-filter-heading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  align-self: center;
+  color: var(--ink-700);
+  font-size: 13px;
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.analytics-filter-bar label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: min(100%, 220px);
+  color: var(--ink-500);
+  font-size: 11.5px;
+}
+
+.analytics-filter-bar label span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.analytics-filter-count {
+  align-self: center;
+  color: var(--ink-500);
+  font-size: 12px;
+  margin-left: auto;
+}
+
+@media (max-width: 640px) {
+  .analytics-filter-heading,
+  .analytics-filter-bar label,
+  .analytics-filter-count {
+    width: 100%;
+  }
+
+  .analytics-filter-count {
+    margin-left: 0;
+  }
+}
+
 .analytics-stat-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;

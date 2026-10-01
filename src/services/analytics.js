@@ -12,6 +12,10 @@ export async function getAnalyticsSummary() {
     .select("id, title, status, academic_year, sdg_tags, program, keywords, view_count, download_count, created_at");
   if (error) throw error;
 
+  return summarizeAnalytics(papers || []);
+}
+
+export function summarizeAnalytics(papers = []) {
   const totalSubmissions = papers.length;
   const approved = papers.filter((p) => p.status === "approved").length;
   const pending = papers.filter((p) => p.status === "pending" || p.status === "under_review").length;

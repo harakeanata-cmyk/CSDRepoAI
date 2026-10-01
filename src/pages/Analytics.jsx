@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { Download, Eye, FileDown, FolderOpen, CheckCircle2, Clock, XCircle, Users2, GraduationCap, UserCog, UserCheck, UserX, Search } from "lucide-react";
+import { Download, Eye, FileDown, FolderOpen, CheckCircle2, Clock, XCircle, Users2, GraduationCap, UserCog, UserCheck, UserX, Search, CalendarDays, Filter, X } from "lucide-react";
 import Layout from "../components/Layout";
 import { PageHeader, StatGrid, StatCard } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 import { subscribeToResearchDataChanges } from "../lib/researchEvents";
-import { getAnalyticsSummary, getUserAnalytics, exportSummaryCsv } from "../services/analytics";
+import { getAnalyticsSummary, getUserAnalytics, exportSummaryCsv, summarizeAnalytics } from "../services/analytics";
 
 const PIE_COLORS = ["var(--analytics-pie-1)", "var(--analytics-pie-2)", "var(--analytics-pie-3)", "var(--analytics-pie-4)", "var(--analytics-pie-5)", "var(--analytics-pie-6)", "var(--analytics-pie-7)"];
 const BAR_COLORS = { total: "var(--analytics-total)", published: "var(--analytics-published)", program: "var(--analytics-program)", keyword: "var(--analytics-keyword)" };
@@ -17,6 +17,8 @@ export default function Analytics() {
   const [users, setUsers] = useState(null);
   const [loading, setLoading] = useState(true);
   const [titleSearch, setTitleSearch] = useState("");
+  const [schoolYearFilter, setSchoolYearFilter] = useState("all");
+  const [programFilter, setProgramFilter] = useState("all");
 
   useEffect(() => {
     let active = true;
@@ -55,6 +57,18 @@ export default function Analytics() {
     };
   }, [role]);
 
+  const schoolYears = useMemo(() => [...new Set(
+    (data?.rawPapers || []).map((paper) => paper.academic_year).filter(Boolean),
+  )].sort((a, b) => b.localeCompare(a)), [data]);
+  const programs = useMemo(() => [...new Set(
+    (data?.rawPapers || []).map((paper) => paper.program).filter(Boolean),
+  )].sort((a, b) => a.localeCompare(b)), [data]);
+  const filteredPapers = useMemo(() => (data?.rawPapers || []).filter((paper) =>
+    (schoolYearFilter === "all" || paper.academic_year === schoolYearFilter)
+    && (programFilter === "all" || paper.program === programFilter)
+  ), [data, schoolYearFilter, programFilter]);
+  const filteredData = useMemo(() => summarizeAnalytics(filteredPapers), [filteredPapers]);
+
   if (loading) {
     return (
       <Layout>
@@ -73,7 +87,7 @@ export default function Analytics() {
   if (!data) return <Layout><p className="page-loading">No data available yet.</p></Layout>;
 
   const searchTerm = titleSearch.trim().toLocaleLowerCase();
-  const filteredTitlesByProgram = data.titlesByProgram
+  const filteredTitlesByProgram = filteredData.titlesByProgram
     .map(({ program, titles }) => ({
       program,
       titles: titles.filter((paper) =>
@@ -92,17 +106,46 @@ export default function Analytics() {
         title="Research Analytics"
         description="Submission trends, program distribution, engagement, and SDG alignment across the repository."
         action={
-          <button className="btn btn-outline btn-sm" onClick={() => exportSummaryCsv(data.rawPapers)}>
+          <button className="btn btn-outline btn-sm" onClick={() => exportSummaryCsv(filteredPapers)}>
             <Download size={13} /> Export report (CSV)
           </button>
         }
       />
 
+      <div className="analytics-filter-bar" aria-label="Filter research analytics">
+        <div className="analytics-filter-heading"><Filter size={15} /><span>Filter research</span></div>
+        <label>
+          <span><CalendarDays size={13} /> School year</span>
+          <select className="input" value={schoolYearFilter} onChange={(event) => setSchoolYearFilter(event.target.value)}>
+            <option value="all">All school years</option>
+            {schoolYears.map((year) => <option key={year} value={year}>{year}</option>)}
+          </select>
+        </label>
+        <label>
+          <span>Program</span>
+          <select className="input" value={programFilter} onChange={(event) => setProgramFilter(event.target.value)}>
+            <option value="all">All programs</option>
+            {programs.map((program) => <option key={program} value={program}>{program}</option>)}
+          </select>
+        </label>
+        <span className="analytics-filter-count" aria-live="polite">{filteredPapers.length} of {data.rawPapers.length} research papers</span>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          onClick={() => { setSchoolYearFilter("all"); setProgramFilter("all"); }}
+          disabled={schoolYearFilter === "all" && programFilter === "all"}
+          aria-label="Clear analytics filters"
+          title="Clear filters"
+        >
+          <X size={14} /> Clear
+        </button>
+      </div>
+
       <StatGrid className="analytics-stat-grid">
-        <StatCard label="Total Submissions" value={data.totalSubmissions} accent="brass" icon={FolderOpen} />
-        <StatCard label="Published (Approved)" value={data.approved} accent="success" icon={CheckCircle2} />
-        <StatCard label="Pending" value={data.pending} accent="warning" icon={Clock} />
-        <StatCard label="Rejected" value={data.rejected} accent="danger" icon={XCircle} />
+        <StatCard label="Total Submissions" value={filteredData.totalSubmissions} accent="brass" icon={FolderOpen} />
+        <StatCard label="Published (Approved)" value={filteredData.approved} accent="success" icon={CheckCircle2} />
+        <StatCard label="Pending" value={filteredData.pending} accent="warning" icon={Clock} />
+        <StatCard label="Rejected" value={filteredData.rejected} accent="danger" icon={XCircle} />
       </StatGrid>
 
       {/* a + b: Published per year vs total per school year */}
@@ -110,7 +153,7 @@ export default function Analytics() {
       <div className="card card-pad">
         <h3 style={{ fontSize: 13.5, marginBottom: 14 }}>Total Submitted vs. Published, per Academic Year</h3>
         <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={data.byYear}>
+          <BarChart data={filteredData.byYear}>
             <XAxis dataKey="name" fontSize={11} stroke="var(--ink-500)" />
             <YAxis allowDecimals={false} fontSize={11} stroke="var(--ink-500)" />
             <Tooltip content={<AnalyticsTooltip />} />
@@ -127,7 +170,7 @@ export default function Analytics() {
         <div className="card card-pad" style={{ width: "100%" }}>
           <h3 style={{ fontSize: 14, marginBottom: 14 }}>Research per Program</h3>
           <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={data.byProgram}>
+            <BarChart data={filteredData.byProgram}>
               <XAxis dataKey="name" fontSize={11} stroke="var(--ink-500)" />
               <YAxis allowDecimals={false} fontSize={11} stroke="var(--ink-500)" />
               <Tooltip content={<AnalyticsTooltip />} />
@@ -138,13 +181,13 @@ export default function Analytics() {
 
         <div className="card card-pad" style={{ width: "100%" }}>
           <h3 style={{ fontSize: 14, marginBottom: 14 }}>Research by SDG Alignment</h3>
-          {data.sdgCounts.length === 0 ? (
+          {filteredData.sdgCounts.length === 0 ? (
             <p style={{ color: "var(--ink-500)", fontSize: 13 }}>No SDG-tagged research yet.</p>
           ) : (
             <ResponsiveContainer width="100%" height={240}>
               <PieChart>
-                <Pie data={data.sdgCounts} dataKey="count" nameKey="sdg" outerRadius={85} label={{ fill: "var(--ink-700)", fontSize: 11 }}>
-                  {data.sdgCounts.map((_, i) => (
+                  <Pie data={filteredData.sdgCounts} dataKey="count" nameKey="sdg" outerRadius={85} label={{ fill: "var(--ink-700)", fontSize: 11 }}>
+                  {filteredData.sdgCounts.map((_, i) => (
                     <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
                   ))}
                 </Pie>
@@ -159,11 +202,11 @@ export default function Analytics() {
             <h3 style={{ fontSize: 14 }}>Research by Keyword</h3>
             <p style={{ color: "var(--ink-500)", fontSize: 12.5, marginTop: 4 }}>Most common keywords across submitted research.</p>
           </div>
-          {data.byKeyword.length === 0 ? (
+          {filteredData.byKeyword.length === 0 ? (
             <p style={{ color: "var(--ink-500)", fontSize: 13 }}>No keywords recorded yet.</p>
           ) : (
             <div className="keyword-analytics-grid">
-              {data.byKeyword.map(({ keyword, count }, index) => (
+              {filteredData.byKeyword.map(({ keyword, count }, index) => (
                 <div className="keyword-analytics-item" key={keyword} title={`${keyword}: ${count} research paper${count === 1 ? "" : "s"}`}>
                   <span className="keyword-analytics-rank">{String(index + 1).padStart(2, "0")}</span>
                   <div className="keyword-analytics-content">
@@ -172,7 +215,7 @@ export default function Analytics() {
                       <span className="keyword-analytics-count">{count}</span>
                     </div>
                     <div className="keyword-analytics-track" aria-hidden="true">
-                      <span style={{ width: `${Math.max(6, (count / data.byKeyword[0].count) * 100)}%` }} />
+                      <span style={{ width: `${Math.max(6, (count / filteredData.byKeyword[0].count) * 100)}%` }} />
                     </div>
                   </div>
                 </div>
@@ -227,8 +270,8 @@ export default function Analytics() {
       {/* d: most viewed / downloaded */}
       <SectionTitle>Engagement</SectionTitle>
       <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
-        <RankedList title="Most Viewed Research" icon={Eye} items={data.mostViewed} metricKey="view_count" metricLabel="views" />
-        <RankedList title="Most Downloaded Research" icon={FileDown} items={data.mostDownloaded} metricKey="download_count" metricLabel="downloads" />
+        <RankedList title="Most Viewed Research" icon={Eye} items={filteredData.mostViewed} metricKey="view_count" metricLabel="views" />
+        <RankedList title="Most Downloaded Research" icon={FileDown} items={filteredData.mostDownloaded} metricKey="download_count" metricLabel="downloads" />
       </div>
 
       {role === "admin" && (
