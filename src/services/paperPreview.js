@@ -32,6 +32,16 @@ export async function openResearchPreviewInNewTab({ urls, title, label }) {
       const file = files[index];
       const content = previewTab.document.getElementById(`file-${index}`);
       const status = previewTab.document.getElementById(`status-${index}`);
+      if (file.extension === "docx") {
+        file.contentType = await getContentType(file.url, controller.signal);
+        if (file.contentType?.includes("application/pdf")) {
+          if (files.length === 1) {
+            previewTab.location.replace(file.url);
+            return;
+          }
+          file.extension = "pdf";
+        }
+      }
       if (file.extension === "pdf") {
         content.innerHTML = `<iframe src="${escapeHtml(file.url)}" title="${escapeHtml(title)} ${escapeHtml(label)}"></iframe>`;
         continue;
@@ -97,6 +107,15 @@ export async function openResearchPreviewInNewTab({ urls, title, label }) {
     throw error;
   } finally {
     window.clearInterval(timer);
+  }
+}
+
+async function getContentType(url, signal) {
+  try {
+    const response = await fetch(url, { method: "HEAD", signal });
+    return response.ok ? response.headers.get("content-type")?.toLowerCase() || "" : "";
+  } catch {
+    return "";
   }
 }
 

@@ -158,10 +158,12 @@ function ResearchFileActions({ paper, urls, label, onPreview }) {
       </button>
       <a
         href={urls[0]}
-        target="_blank"
-        rel="noreferrer"
-        onClick={() => incrementViewCount(paper.id)}
+        onClick={(event) => {
+          event.preventDefault();
+          onPreview(paper, urls, label);
+        }}
         className="search-file-action"
+        title="Open this paper in the same preview viewer without downloading it."
       >
         <ExternalLink size={13} /> Open {label}
       </a>
