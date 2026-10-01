@@ -131,9 +131,47 @@
   background: #fff;
 }
 
+.research-preview-pdf-page {
+  display: block;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.research-preview-pdf-page canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.research-preview-pdf-page-error {
+  margin: 12px;
+  color: #a83232;
+  font-size: 13px;
+}
+
+.research-preview-pdf-download {
+  display: flex;
+  justify-content: center;
+  margin: 0 auto 20px;
+}
+
+.research-preview-pdf-error {
+  width: min(850px, calc(100% - 32px));
+  margin: 24px auto;
+  padding: 18px;
+  border-left: 4px solid #b43c3c;
+  color: #45535c;
+  background: #fff;
+}
+
 .research-preview-docx {
   zoom: var(--paper-zoom);
   padding: 0;
+}
+
+.research-preview-docx-styles {
+  display: none;
 }
 
 .research-preview-docx .docx-wrapper {
@@ -232,5 +270,16 @@
 
   .research-preview-page iframe {
     height: 100vh;
+  }
+
+  .research-preview-pdf-page {
+    zoom: 1 !important;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .research-preview-pdf-page:last-of-type {
+    break-after: auto;
+    page-break-after: auto;
   }
 }
