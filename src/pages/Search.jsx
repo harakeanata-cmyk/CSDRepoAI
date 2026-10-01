@@ -4,7 +4,7 @@ import Layout from "../components/Layout";
 import { PageHeader, EmptyState } from "../components/ui";
 import { searchResearch } from "../services/search";
 import { openResearchPreviewInNewTab } from "../services/paperPreview";
-import { getApprovedResearchText, getResearchFileUrls, incrementViewCount } from "../services/research";
+import { getResearchFileUrls, incrementViewCount } from "../services/research";
 
 export default function Search() {
   const [query, setQuery] = useState("");
@@ -17,12 +17,7 @@ export default function Search() {
   async function handlePreview(paper, urls, label) {
     setPreviewError("");
     try {
-      await openResearchPreviewInNewTab({
-        urls,
-        title: paper.title,
-        label,
-        getDocumentText: () => getApprovedResearchText(paper.id),
-      });
+      await openResearchPreviewInNewTab({ urls, title: paper.title, label });
       incrementViewCount(paper.id);
     } catch (previewRequestError) {
       setPreviewError(previewRequestError.message || "Could not open the paper preview.");
