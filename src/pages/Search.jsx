@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Search as SearchIcon, FileSearch, FolderOpen } from "lucide-react";
+import { Search as SearchIcon, FileSearch, FolderOpen, Eye, ExternalLink } from "lucide-react";
 import Layout from "../components/Layout";
 import { PageHeader, EmptyState } from "../components/ui";
+import ResearchPreview from "../components/ResearchPreview";
 import { searchResearch } from "../services/search";
-import { getResearchFileUrls, incrementDownloadCount } from "../services/research";
+import { getResearchFileUrls, incrementViewCount } from "../services/research";
 
 export default function Search() {
   const [query, setQuery] = useState("");
@@ -11,6 +12,7 @@ export default function Search() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState("");
+  const [preview, setPreview] = useState(null);
 
   async function handleSearch(e) {
     e.preventDefault();
@@ -79,10 +81,10 @@ export default function Search() {
               <h3>{r.title}</h3>
               <div
                 className={`search-match-confidence${r.matchConfidence >= 80 ? " is-high" : r.matchConfidence >= 65 ? " is-mid" : " is-low"}`}
-                aria-label={`Match confidence ${r.matchConfidence}%`}
-                title="Relevance score based on the paper's content and semantic similarity; not a probability."
+                aria-label={`Estimated relevance score ${r.matchConfidence}%`}
+                title="Estimated relevance from text and semantic matches. It is not a probability or a certainty score."
               >
-                <span>Match confidence</span>
+                <span>Relevance</span>
                 <strong>{r.matchConfidence}%</strong>
                 <span className="search-match-track" aria-hidden="true"><span style={{ width: `${r.matchConfidence}%` }} /></span>
               </div>
@@ -95,54 +97,73 @@ export default function Search() {
                 </span>
               ))}
             </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 10 }}>
+            <div className="search-result-files">
               {getResearchFileUrls(r.file_url).length > 0 && (
-                <a
-                  href={getResearchFileUrls(r.file_url)[0]}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={() => incrementDownloadCount(r.id)}
-                  style={{ fontSize: 12.5, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}
-                >
-                  <FileSearch size={13} /> View manuscript
-                </a>
+                <ResearchFileActions
+                  paper={r}
+                  urls={getResearchFileUrls(r.file_url)}
+                  label="manuscript"
+                  onPreview={setPreview}
+                />
               )}
               {getResearchFileUrls(r.source_code_url).length > 0 && (
                 <a
                   href={getResearchFileUrls(r.source_code_url)[0]}
                   target="_blank"
                   rel="noreferrer"
-                  onClick={() => incrementDownloadCount(r.id)}
-                  style={{ fontSize: 12.5, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}
+                  onClick={() => incrementViewCount(r.id)}
+                  className="search-file-action"
                 >
-                  <FolderOpen size={13} /> View source code
+                  <FolderOpen size={13} /> Open source code
                 </a>
               )}
               {getResearchFileUrls(r.ieee_paper_url).length > 0 && (
-                <a
-                  href={getResearchFileUrls(r.ieee_paper_url)[0]}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={() => incrementDownloadCount(r.id)}
-                  style={{ fontSize: 12.5, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}
-                >
-                  <FileSearch size={13} /> View IEEE short paper
-                </a>
+                <ResearchFileActions paper={r} urls={getResearchFileUrls(r.ieee_paper_url)} label="IEEE paper" onPreview={setPreview} />
               )}
               {getResearchFileUrls(r.acm_paper_url).length > 0 && (
-                <a href={getResearchFileUrls(r.acm_paper_url)[0]} target="_blank" rel="noreferrer" onClick={() => incrementDownloadCount(r.id)} style={{ fontSize: 12.5, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                  <FileSearch size={13} /> View ACM style paper
-                </a>
+                <ResearchFileActions paper={r} urls={getResearchFileUrls(r.acm_paper_url)} label="ACM paper" onPreview={setPreview} />
               )}
               {getResearchFileUrls(r.apa_paper_url).length > 0 && (
-                <a href={getResearchFileUrls(r.apa_paper_url)[0]} target="_blank" rel="noreferrer" onClick={() => incrementDownloadCount(r.id)} style={{ fontSize: 12.5, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                  <FileSearch size={13} /> View APA style paper
-                </a>
+                <ResearchFileActions paper={r} urls={getResearchFileUrls(r.apa_paper_url)} label="APA paper" onPreview={setPreview} />
               )}
             </div>
           </div>
         ))}
       </div>
+      {preview && (
+        <ResearchPreview
+          title={preview.paper.title}
+          label={preview.label}
+          urls={preview.urls}
+          onClose={() => setPreview(null)}
+        />
+      )}
     </Layout>
+  );
+}
+
+function ResearchFileActions({ paper, urls, label, onPreview }) {
+  return (
+    <>
+      <button
+        type="button"
+        className="search-file-action search-file-preview"
+        onClick={() => {
+          incrementViewCount(paper.id);
+          onPreview({ paper, urls, label });
+        }}
+      >
+        <Eye size={13} /> Preview {label}
+      </button>
+      <a
+        href={urls[0]}
+        target="_blank"
+        rel="noreferrer"
+        onClick={() => incrementViewCount(paper.id)}
+        className="search-file-action"
+      >
+        <ExternalLink size={13} /> Open {label}
+      </a>
+    </>
   );
 }

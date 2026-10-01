@@ -54,9 +54,9 @@ export function getSearchMatch(query, item) {
     lexicalScore = Math.max(lexicalScore, fieldWeight >= 3 ? 100 : fieldWeight >= 2.4 ? 88 : fieldWeight >= 2 ? 84 : fieldWeight >= 1 ? 72 : 55);
   }
 
-  const confidence = lexicalScore === 100
-    ? 100
-    : Math.round(lexicalScore * 0.65 + semanticEvidence * 35);
+  const confidence = Math.min(95, lexicalScore === 100
+    ? 95
+    : Math.round(lexicalScore * 0.65 + semanticEvidence * 35));
   const minimumLexicalCoverage = tokens.length > 1 ? 0.6 : 0.45;
   const relevant = Boolean(exactField)
     || semanticSimilarity >= MIN_SEMANTIC_SIMILARITY

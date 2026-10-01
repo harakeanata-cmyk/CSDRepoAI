@@ -9,7 +9,8 @@ test("ranks exact title matches above incidental abstract overlap", () => {
   ], []);
 
   assert.equal(results[0].id, "title");
-  assert.equal(results[0].matchConfidence, 100);
+  assert.equal(results[0].matchConfidence, 95);
+  assert.ok(results.every(({ matchConfidence }) => matchConfidence < 100));
 });
 
 test("does not assign perfect confidence from a single common token", () => {
