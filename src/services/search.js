@@ -1,15 +1,9 @@
 import { supabase } from "../lib/supabaseClient";
 import { toGenkitEndpoint } from "../lib/genkitUrl.js";
+import { rankSearchResults } from "../lib/searchRanking.js";
 
 const GENKIT_SEARCH_URL = toGenkitEndpoint(import.meta.env.VITE_GENKIT_SEARCH_URL, "search");
 const GENKIT_DUPLICATE_URL = toGenkitEndpoint(GENKIT_SEARCH_URL, "check-duplicate");
-const MIN_SEMANTIC_SIMILARITY = 0.45;
-const MIN_MATCH_CONFIDENCE = 50;
-const SEARCH_STOP_WORDS = new Set([
-  "a", "an", "and", "are", "about", "for", "from", "in", "into", "is", "of", "on", "or", "the", "to", "with",
-  "find", "paper", "papers", "research", "study", "studies", "system",
-]);
-
 export async function checkResearchDuplicate({ title, abstract, keywords = [], documentText = "", excludePaperId }) {
   if (!GENKIT_DUPLICATE_URL || GENKIT_DUPLICATE_URL === GENKIT_SEARCH_URL) {
     throw new Error("Topic duplicate checking is not configured. Ask an administrator to enable semantic search before submitting this manuscript.");
@@ -82,7 +76,7 @@ export async function searchResearch(query, { sdgFilter, statusFilter = "approve
     throw textResult.reason;
   }
 
-  return mergeSearchResults(normalizedQuery, textItems, semanticItems);
+  return rankSearchResults(normalizedQuery, textItems, semanticItems);
 }
 
 async function searchBySemantic(query, filters) {
@@ -121,59 +115,4 @@ async function searchByText(query, { sdgFilter, statusFilter }) {
 function formatQuery(raw) {
   // websearch_to_tsquery handles natural phrasing like "AI search for thesis papers"
   return raw.trim();
-}
-
-function mergeSearchResults(query, textItems, semanticItems) {
-  const byId = new Map();
-
-  for (const item of [...textItems, ...semanticItems]) {
-    if (!item?.id) continue;
-
-    const existing = byId.get(item.id);
-    byId.set(item.id, existing ? { ...existing, ...item } : item);
-  }
-
-  return [...byId.values()]
-    .map((item) => ({ item, ...getSearchMatch(query, item) }))
-    .filter(({ relevant }) => relevant)
-    .sort((left, right) => right.confidence - left.confidence)
-    .slice(0, 30)
-    .map(({ item, confidence }) => ({ ...item, matchConfidence: confidence }));
-}
-
-function getSearchMatch(query, item) {
-  const normalizedQuery = normalizeSearchText(query);
-  const tokens = normalizedQuery
-    .split(" ")
-    .filter((token) => token.length > 1 && !SEARCH_STOP_WORDS.has(token));
-  const fields = [
-    normalizeSearchText(item.title),
-    normalizeSearchText(Array.isArray(item.authors) ? item.authors.join(" ") : item.authors),
-    normalizeSearchText(item.abstract),
-    normalizeSearchText(Array.isArray(item.keywords) ? item.keywords.join(" ") : ""),
-    normalizeSearchText(item.ocr_raw_text),
-  ].filter(Boolean);
-  const exactPhraseMatch = normalizedQuery.length > 2 && fields.some((field) => field.includes(normalizedQuery));
-  const matchedTokens = tokens.filter((token) => fields.some((field) => field.split(" ").includes(token)));
-  const termCoverage = tokens.length ? matchedTokens.length / tokens.length : 0;
-  const semanticSimilarity = Math.min(1, Math.max(0, Number(item.similarity) || 0));
-  const confidence = exactPhraseMatch
-    ? 100
-    : Math.round(Math.max(termCoverage, semanticSimilarity) * 100);
-  const requiredMatches = Math.min(2, tokens.length);
-  const relevant = exactPhraseMatch
-    || semanticSimilarity >= MIN_SEMANTIC_SIMILARITY
-    || (requiredMatches > 0 && matchedTokens.length >= requiredMatches && confidence >= MIN_MATCH_CONFIDENCE);
-
-  return { confidence, relevant };
-}
-
-function normalizeSearchText(value) {
-  return String(value || "")
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim()
-    .replace(/\s+/g, " ");
 }
