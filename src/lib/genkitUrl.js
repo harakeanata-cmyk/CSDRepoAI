@@ -16,7 +16,12 @@ export function normalizeGenkitUrl(value) {
 }
 
 export function toGenkitEndpoint(value, endpoint) {
-  const baseUrl = normalizeGenkitUrl(value);
+  // The production Vercel project bundles the Genkit API as same-origin
+  // serverless routes. Prefer those routes over stale build-time URLs.
+  const productionOrigin = import.meta.env?.PROD && typeof window !== "undefined"
+    ? window.location.origin
+    : "";
+  const baseUrl = normalizeGenkitUrl(productionOrigin || value);
   if (!baseUrl) return "";
   const baseWithoutEndpoint = baseUrl.replace(/\/(?:search|check-duplicate|embed|metadata|extract-metadata|format-review|health)$/i, "");
   return `${baseWithoutEndpoint}/${endpoint}`;
