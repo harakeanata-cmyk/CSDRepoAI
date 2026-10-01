@@ -24,9 +24,10 @@ import Layout from "../../components/Layout";
 import { PageHeader, Field } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { digitizeAndArchive, scanDocuments, extractMetadata, expandUploadedFiles, reviewPaperFormat } from "../../services/ocr";
-import { suggestKeywordsWithAI } from "../../services/metadataSuggestions";
+import { suggestKeywordsWithAI, suggestMetadata } from "../../services/metadataSuggestions";
 import { getAcademicYears } from "../../services/academicYears";
 import { useUnloadWarning } from "../../lib/useUnloadWarning";
+import { SDG_LIST } from "../../lib/sdgList";
 
 const STEPS = [
   { key: "upload", label: "Upload" },
@@ -58,7 +59,8 @@ export default function OCRScan() {
   const [isDragging, setIsDragging] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [canStopScan, setCanStopScan] = useState(false);
-  const [meta, setMeta] = useState({ title: "", authors: "", academicYear: "", adviser: "", panelMembers: "", abstract: "", keywords: "" });
+  const [meta, setMeta] = useState({ title: "", authors: "", academicYear: "", program: "", adviser: "", panelMembers: "", abstract: "", keywords: "" });
+  const [sdgTags, setSdgTags] = useState([]);
   const [aiStatus, setAiStatus] = useState("idle");
   const [saveProgress, setSaveProgress] = useState({ completed: 0, total: 0 });
   const [saveEstimateSeconds, setSaveEstimateSeconds] = useState(null);
@@ -143,7 +145,8 @@ function handleFile(e) {
     if (nextFiles.length === 0) {
       setStep("idle");
       setOcrText("");
-      setMeta({ title: "", authors: "", academicYear: "", adviser: "", panelMembers: "", abstract: "", keywords: "" });
+      setMeta({ title: "", authors: "", academicYear: "", program: "", adviser: "", panelMembers: "", abstract: "", keywords: "" });
+      setSdgTags([]);
     }
     setPreviewIndex(null);
     setPreviewZoom(1);
@@ -292,12 +295,20 @@ function handleFile(e) {
           title: extracted.title,
           authors: extracted.authors,
           academicYear: "",
+          program: "",
           adviser: extracted.adviser,
           panelMembers: extracted.panelMembers,
           abstract: extracted.abstract,
           keywords: extracted.keywords,
         });
+        setSdgTags(suggestMetadata({
+          title: extracted.title,
+          abstract: extracted.abstract,
+          keywords: extracted.keywords,
+        }).sdgTags);
         setAiStatus(extracted.aiStatus || "failed");
+      } else {
+        setSdgTags(suggestMetadata(meta).sdgTags);
       }
 
       const currentKeywords = extractedMetadata ? extractedMetadata.keywords : meta.keywords;
@@ -356,6 +367,8 @@ function handleFile(e) {
         panelMembers: meta.panelMembers.split(",").map((member) => member.trim()).filter(Boolean),
         abstract: meta.abstract,
         keywords: meta.keywords.split(",").map((k) => k.trim()).filter(Boolean),
+        program: meta.program,
+        sdgTags,
         adminId: user.id,
         onProgress: ({ phase, completed = 0, total = files.length, bytes = 0 }) => {
           setSaveProgress({ completed, total, phase });
@@ -394,7 +407,8 @@ function handleFile(e) {
     setDonePages(0);
     setEstimatedSecondsRemaining(null);
     setSaveEstimateSeconds(null);
-    setMeta({ title: "", authors: "", academicYear: "", adviser: "", panelMembers: "", abstract: "", keywords: "" });
+    setMeta({ title: "", authors: "", academicYear: "", program: "", adviser: "", panelMembers: "", abstract: "", keywords: "" });
+    setSdgTags([]);
     setKeywordSuggestions([]);
     setKeywordSuggestionStatus("idle");
     setSaveProgress({ completed: 0, total: 0 });
@@ -407,6 +421,12 @@ function handleFile(e) {
       return { ...current, keywords: terms.join(", ") };
     });
     setKeywordSuggestions((current) => current.filter((keyword) => keyword !== suggestion));
+  }
+
+  function toggleSdg(id) {
+    setSdgTags((current) => current.includes(id)
+      ? current.filter((tag) => tag !== id)
+      : [...current, id]);
   }
 
   const stagePreview = previews[currentPage - 1] || previews[0];
@@ -758,6 +778,28 @@ function handleFile(e) {
               </select>
             </Field>
           </div>
+
+          <Field label={<span><GraduationCap size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Program</span>}>
+            <select className="input" value={meta.program} onChange={(e) => setMeta((m) => ({ ...m, program: e.target.value }))} required>
+              <option value="">Select program</option>
+              <option value="BSIT">Bachelor of Science in Information Technology (BSIT)</option>
+              <option value="BSCS">Bachelor of Science in Computer Science (BSCS)</option>
+              <option value="BSIS">Bachelor of Science in Information Systems (BSIS)</option>
+              <option value="BSCpE">Bachelor of Science in Computer Engineering (BSCpE)</option>
+              <option value="Associate/Diploma in Computer Technology">Associate/Diploma in Computer Technology</option>
+            </select>
+          </Field>
+
+          <Field label={<span><Tags size={11} style={{ verticalAlign: -1, marginRight: 4 }} />SDG alignment (auto-detected; adjust as needed)</span>}>
+            <div className="sdg-grid">
+              {SDG_LIST.map((sdg) => (
+                <button type="button" key={sdg.id} onClick={() => toggleSdg(sdg.id)} className={`sdg-chip${sdgTags.includes(sdg.id) ? " selected" : ""}`} aria-pressed={sdgTags.includes(sdg.id)}>
+                  <span className="sdg-chip-num">{sdg.id}</span>
+                  {sdg.title}
+                </button>
+              ))}
+            </div>
+          </Field>
 
           {!meta.keywords.trim() && keywordSuggestionStatus !== "idle" && (
             <div className={`metadata-analysis${keywordSuggestionStatus === "loading" ? " analyzing" : keywordSuggestionStatus === "unavailable" ? " error" : ""}`} role="status" aria-live="polite">
