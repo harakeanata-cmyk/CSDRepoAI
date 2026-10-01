@@ -4,6 +4,7 @@ import { ClipboardCheck, ScanLine, Users, ArrowRight, FolderOpen, Clock, CheckCi
 import Layout from "../../components/Layout";
 import { PageHeader, StatGrid, StatCard } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
+import { subscribeToResearchDataChanges } from "../../lib/researchEvents";
 import { getAnalyticsSummary } from "../../services/analytics";
 import { getPendingSubmissions, getAuditTrail } from "../../services/research";
 
@@ -14,9 +15,40 @@ export default function AdminDashboard() {
   const [auditTrail, setAuditTrail] = useState([]);
 
   useEffect(() => {
-    getAnalyticsSummary().then(setSummary);
-    getPendingSubmissions().then(setPending);
-    getAuditTrail({ limit: 8 }).then(setAuditTrail);
+    let active = true;
+    let refreshSequence = 0;
+    const refresh = async () => {
+      const currentSequence = ++refreshSequence;
+      try {
+        const [nextSummary, nextPending, nextAuditTrail] = await Promise.all([
+          getAnalyticsSummary(),
+          getPendingSubmissions(),
+          getAuditTrail({ limit: 8 }),
+        ]);
+        if (!active || currentSequence !== refreshSequence) return;
+        setSummary(nextSummary);
+        setPending(nextPending);
+        setAuditTrail(nextAuditTrail);
+      } catch (error) {
+        console.error("Could not refresh the admin dashboard:", error);
+      }
+    };
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+
+    refresh();
+    const unsubscribeFromChanges = subscribeToResearchDataChanges(refresh);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+
+    return () => {
+      active = false;
+      unsubscribeFromChanges();
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
   }, []);
 
   return (
