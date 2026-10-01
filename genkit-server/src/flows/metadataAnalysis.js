@@ -46,11 +46,8 @@ ${text}
 Return only valid JSON.`;
 
     const response = await ai.generate({
-      model: googleAI.model("gemini-2.0-flash"),
+      model: googleAI.model("gemini-3.8-flash"),
       prompt,
-      config: {
-        temperature: 0.2,
-      },
     });
 
     const parsed = parseMetadataResponse(response.text);
