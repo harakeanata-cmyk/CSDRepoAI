@@ -7,18 +7,26 @@ import { supabase } from "../lib/supabaseClient";
  * move these aggregations into Postgres views/RPC functions instead.
  */
 export async function getAnalyticsSummary() {
-  const { data: papers, error } = await supabase
-    .from("research_papers")
-    .select("id, title, status, academic_year, sdg_tags, program, keywords, view_count, download_count, created_at");
-  if (error) throw error;
+  const pageSize = 1000;
+  const papers = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("research_papers")
+      .select("id, title, status, academic_year, sdg_tags, program, keywords, view_count, download_count, created_at")
+      .order("id", { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    papers.push(...(data || []));
+    if (!data || data.length < pageSize) break;
+  }
 
-  return summarizeAnalytics(papers || []);
+  return summarizeAnalytics(papers);
 }
 
 export function summarizeAnalytics(papers = []) {
   const totalSubmissions = papers.length;
   const approved = papers.filter((p) => p.status === "approved").length;
-  const pending = papers.filter((p) => p.status === "pending" || p.status === "under_review").length;
+  const pending = papers.filter((p) => ["pending", "under_review", "student_editing"].includes(p.status)).length;
   const rejected = papers.filter((p) => p.status === "rejected").length;
 
   // (a) Published (approved) per year + (b) Total submitted per school year,

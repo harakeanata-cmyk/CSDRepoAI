@@ -230,6 +230,8 @@ export async function submitResearch({
     throw error;
   }
 
+  notifyResearchDataChanged();
+
   await supabase.from("submission_logs").insert({
     paper_id: data.id,
     action: "submitted",
@@ -334,6 +336,8 @@ export async function updateResearchSubmission({
     }
     throw error;
   }
+
+  notifyResearchDataChanged();
 
   const replacedUrls = Object.entries(files)
     .filter(([key, file]) => file && fileColumns[key])
@@ -484,6 +488,7 @@ export async function beginResearchEditing({ paperId, userId }) {
     throw error;
   }
   if (!data) throw new Error("This submission is approved or is no longer available for editing.");
+  notifyResearchDataChanged();
   return data;
 }
 
@@ -499,6 +504,7 @@ export async function cancelResearchEditing({ paperId, userId }) {
 
   if (error) throw error;
   if (!data) throw new Error("This submission is no longer marked for editing.");
+  notifyResearchDataChanged();
   return data;
 }
 
@@ -652,6 +658,8 @@ export async function reviewSubmission({ paperId, status, notes, reviewerId }) {
     .maybeSingle();
   if (error) throw error;
   if (!data) throw new Error("This submission is currently being edited by its student or is no longer awaiting review.");
+
+  notifyResearchDataChanged();
 
   await supabase.from("submission_logs").insert({
     paper_id: paperId,
