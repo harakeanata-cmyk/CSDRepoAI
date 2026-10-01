@@ -41,6 +41,16 @@ test("rejects an incidental single-term match for a multiword query", () => {
   assert.deepEqual(results.map(({ id }) => id), ["related"]);
 });
 
+test("keeps full-text results matched by PostgreSQL stemming", () => {
+  const results = rankSearchResults("lodge", [
+    { id: "lodging-paper", title: "Housing Research", ocr_raw_text: "Verified lodging for students" },
+  ], []);
+
+  assert.equal(results.length, 1);
+  assert.equal(results[0].id, "lodging-paper");
+  assert.equal(results[0].matchConfidence, 62);
+});
+
 test("combines text and semantic copies without duplicating a paper", () => {
   const results = rankSearchResults("flood monitoring", [
     { id: "paper", title: "Flood Monitoring System", similarity: 0 },

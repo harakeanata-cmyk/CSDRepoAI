@@ -14,6 +14,7 @@ const MIN_SEMANTIC_SIMILARITY = 0.53;
 
 export function rankSearchResults(query, textItems, semanticItems) {
   const byId = new Map();
+  const fullTextMatchIds = new Set(textItems.map((item) => item?.id).filter(Boolean));
 
   for (const item of [...textItems, ...semanticItems]) {
     if (!item?.id) continue;
@@ -23,7 +24,15 @@ export function rankSearchResults(query, textItems, semanticItems) {
   }
 
   return [...byId.values()]
-    .map((item) => ({ item, ...getSearchMatch(query, item) }))
+    .map((item) => {
+      const match = getSearchMatch(query, item);
+      const fullTextMatch = fullTextMatchIds.has(item.id);
+      return {
+        item,
+        confidence: fullTextMatch && !match.relevant ? Math.max(match.confidence, 62) : match.confidence,
+        relevant: fullTextMatch || match.relevant,
+      };
+    })
     .filter(({ relevant }) => relevant)
     .sort((left, right) => right.confidence - left.confidence)
     .slice(0, 30)
