@@ -76,8 +76,8 @@ export default function Archive() {
 
   function renderPaperTable(records) {
     return (
-      <div className="table-wrap">
-        <table className="table">
+      <div className="table-wrap admin-archive-table-wrap">
+        <table className="table admin-archive-table">
           <thead>
             <tr>
               <th>Title</th>
@@ -97,11 +97,11 @@ export default function Archive() {
                 <td>{p.academic_year || "—"}</td>
                 <td><AccountDetails account={p.submitterAccount} /></td>
                 <td><AccountDetails account={p.approverAccount} /></td>
-                <td>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
+                <td className="admin-archive-file-cell">
+                  <div className="admin-archive-file-content">
                     {getResearchFileUrls(p.file_url).length > 0 ? (
-                      <div>
-                        <ResearchFileActions paper={p} field="file_url" label="manuscript" />
+                      <div className="admin-archive-file-item">
+                        <ResearchFileActions paper={p} field="file_url" label="manuscript" className="admin-archive-file-actions" />
                         <span className="archive-file-format">{getFileFormat(getResearchFileUrls(p.file_url))}</span>
                       </div>
                     ) : (
@@ -112,6 +112,7 @@ export default function Archive() {
                         href={getResearchFileUrls(p.source_code_url)[0]}
                         target="_blank"
                         rel="noreferrer"
+                        className="admin-archive-extra-file"
                         style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, fontWeight: 600, color: "var(--brass-700)", textDecoration: "underline" }}
                       >
                         <FolderOpen size={13} /> View source code
@@ -119,16 +120,16 @@ export default function Archive() {
                       </a>
                     )}
                     {getResearchFileUrls(p.ieee_paper_url).length > 0 && (
-                      <div>
-                        <ResearchFileActions paper={p} field="ieee_paper_url" label="IEEE short paper" />
+                      <div className="admin-archive-file-item">
+                        <ResearchFileActions paper={p} field="ieee_paper_url" label="IEEE short paper" className="admin-archive-file-actions" />
                         <span className="archive-file-format">{getFileFormat(getResearchFileUrls(p.ieee_paper_url))}</span>
                       </div>
                     )}
                     {getResearchFileUrls(p.acm_paper_url).length > 0 && (
-                      <div><ResearchFileActions paper={p} field="acm_paper_url" label="ACM style paper" /></div>
+                      <div className="admin-archive-file-item"><ResearchFileActions paper={p} field="acm_paper_url" label="ACM style paper" className="admin-archive-file-actions" /></div>
                     )}
                     {getResearchFileUrls(p.apa_paper_url).length > 0 && (
-                      <div><ResearchFileActions paper={p} field="apa_paper_url" label="APA style paper" /></div>
+                      <div className="admin-archive-file-item"><ResearchFileActions paper={p} field="apa_paper_url" label="APA style paper" className="admin-archive-file-actions" /></div>
                     )}
                   </div>
                 </td>

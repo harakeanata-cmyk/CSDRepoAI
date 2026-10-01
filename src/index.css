@@ -2059,6 +2059,48 @@ table.archive-table tbody tr:hover {
   background: color-mix(in srgb, var(--brass-500) 12%, var(--surface-sunken));
 }
 
+.admin-archive-table-wrap {
+  overflow-x: auto;
+}
+
+table.admin-archive-table {
+  min-width: 1180px;
+  table-layout: fixed;
+}
+
+table.admin-archive-table th:nth-child(1),
+table.admin-archive-table td:nth-child(1) { width: 21%; }
+table.admin-archive-table th:nth-child(2),
+table.admin-archive-table td:nth-child(2) { width: 14%; }
+table.admin-archive-table th:nth-child(3),
+table.admin-archive-table td:nth-child(3) { width: 8%; }
+table.admin-archive-table th:nth-child(4),
+table.admin-archive-table td:nth-child(4),
+table.admin-archive-table th:nth-child(5),
+table.admin-archive-table td:nth-child(5) { width: 16%; }
+table.admin-archive-table th:nth-child(6),
+table.admin-archive-table td:nth-child(6) { width: 17%; }
+table.admin-archive-table th:nth-child(7),
+table.admin-archive-table td:nth-child(7) { width: 8%; }
+
+.admin-archive-file-content,
+.admin-archive-file-item,
+.admin-archive-file-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+}
+
+.admin-archive-file-content {
+  min-width: 190px;
+}
+
+.admin-archive-file-actions .search-file-action,
+.admin-archive-extra-file {
+  white-space: nowrap;
+}
+
 .archive-file-links {
   display: flex;
   flex-direction: column;
