@@ -514,6 +514,27 @@ export async function getApprovedPapers({ limit = 50 } = {}) {
   return data;
 }
 
+/** Admin archive view: include the accounts that submitted and approved each paper. */
+export async function getApprovedPapersWithAccounts({ limit = 50 } = {}) {
+  const papers = await getApprovedPapers({ limit });
+  if (!papers.length) return papers;
+
+  const accountIds = [...new Set(papers.flatMap((paper) => [paper.submitted_by, paper.reviewed_by]).filter(Boolean))];
+  const { data: accounts, error } = await supabase
+    .from("profiles")
+    .select("id, full_name, role, student_number, faculty_number")
+    .in("id", accountIds);
+
+  if (error) throw error;
+
+  const accountById = new Map((accounts || []).map((account) => [account.id, account]));
+  return papers.map((paper) => ({
+    ...paper,
+    submitterAccount: accountById.get(paper.submitted_by) || null,
+    approverAccount: accountById.get(paper.reviewed_by) || null,
+  }));
+}
+
 export async function deleteResearchPaper(paper) {
   const fileUrls = [paper.file_url, paper.source_code_url, paper.ieee_paper_url, paper.acm_paper_url, paper.apa_paper_url]
     .flatMap(getResearchFileUrls);

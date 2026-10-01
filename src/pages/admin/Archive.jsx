@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FileText, FolderOpen, Archive as ArchiveIcon, Trash2 } from "lucide-react";
 import Layout from "../../components/Layout";
 import { PageHeader, EmptyState, StatGrid, StatCard } from "../../components/ui";
-import { deleteResearchPaper, getApprovedPapers, getResearchFileUrls, openResearchFile } from "../../services/research";
+import { deleteResearchPaper, getApprovedPapersWithAccounts, getResearchFileUrls, openResearchFile } from "../../services/research";
 
 export default function Archive() {
   const [papers, setPapers] = useState([]);
@@ -21,7 +21,7 @@ export default function Archive() {
 
   function load() {
     setLoading(true);
-    getApprovedPapers({ limit: 200 }).then(setPapers).finally(() => setLoading(false));
+    getApprovedPapersWithAccounts({ limit: 200 }).then(setPapers).finally(() => setLoading(false));
   }
 
   async function handleDelete(paper) {
@@ -83,6 +83,8 @@ export default function Archive() {
               <th>Title</th>
               <th>Authors</th>
               <th>Year</th>
+              <th>Submitted By</th>
+              <th>Approved By</th>
               <th>File</th>
               <th>Action</th>
             </tr>
@@ -93,6 +95,8 @@ export default function Archive() {
                 <td style={{ fontWeight: 600, maxWidth: 320 }}>{p.title}</td>
                 <td style={{ color: "var(--ink-500)" }}>{(p.authors || []).join(", ") || "—"}</td>
                 <td>{p.academic_year || "—"}</td>
+                <td><AccountDetails account={p.submitterAccount} /></td>
+                <td><AccountDetails account={p.approverAccount} /></td>
                 <td>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
                     {getResearchFileUrls(p.file_url).length > 0 ? (
@@ -278,6 +282,20 @@ export default function Archive() {
         </div>
       )}
     </Layout>
+  );
+}
+
+function AccountDetails({ account }) {
+  if (!account) return <span style={{ color: "var(--ink-300)" }}>Not recorded</span>;
+
+  const role = account.role === "student" ? "Student" : account.role === "faculty" ? "Faculty" : "Admin";
+  const identifier = account.role === "student" ? account.student_number : account.faculty_number;
+
+  return (
+    <div style={{ minWidth: 140 }}>
+      <div style={{ fontWeight: 600 }}>{account.full_name || "Unnamed account"}</div>
+      <div style={{ color: "var(--ink-500)", fontSize: 12 }}>{role}{identifier ? ` · ${identifier}` : ""}</div>
+    </div>
   );
 }
 
