@@ -550,6 +550,17 @@ export function getResearchFileUrls(fileUrl) {
   }
 }
 
+export async function getApprovedResearchText(paperId) {
+  const { data, error } = await supabase
+    .from("research_papers")
+    .select("ocr_raw_text")
+    .eq("id", paperId)
+    .eq("status", "approved")
+    .maybeSingle();
+  if (error) throw error;
+  return data?.ocr_raw_text || "";
+}
+
 function getResearchStoragePath(url) {
   const marker = "/storage/v1/object/public/research-files/";
   const markerIndex = url.indexOf(marker);
