@@ -11,6 +11,7 @@ import { supabaseAdmin } from "./supabaseAdmin.js";
 const app = express();
 const allowedOrigins = [
   "https://csd-repo-ai.vercel.app",
+  "https://csd-repo-ai-three.vercel.app",
   "https://csd-repo-ai-semantic.vercel.app",
   "http://localhost:5173",
   "http://localhost:3000",
