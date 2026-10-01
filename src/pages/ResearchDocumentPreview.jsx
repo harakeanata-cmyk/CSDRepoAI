@@ -3,6 +3,7 @@ import { ArrowLeft, Download, Minus, Plus, Printer } from "lucide-react";
 import { getResearchDownloadUrl, isResearchStorageUrl, normalizeResearchFileUrls } from "../lib/researchFilePreview";
 import { prepareResearchPreviewFile } from "../lib/researchFilePreviewRuntime";
 import { supabase } from "../lib/supabaseClient";
+import { recordResearchDownload } from "../services/research";
 import "./ResearchDocumentPreview.css";
 
 const PREVIEW_STORAGE_PREFIX = "csdrepoai:paper-preview:";
@@ -45,15 +46,20 @@ export default function ResearchDocumentPreview() {
     }
 
     let active = true;
-    Promise.all(urls.map((url) => prepareResearchPreviewFile(url, { checkMime: urls.length === 1 })))
-      .then((nextFiles) => {
+    Promise.allSettled(urls.map((url) => prepareResearchPreviewFile(url, { checkMime: urls.length === 1 })))
+      .then((results) => {
         if (!active) return;
-        if (nextFiles.some((file) => !["pdf", "docx", "image"].includes(file.type))) {
+        const nextFiles = results.map((result, index) => result.status === "fulfilled"
+          ? result.value
+          : {
+            url: urls[index],
+            type: "error",
+            error: result.reason?.message || "Could not load this page.",
+            downloadUrl: isResearchStorageUrl(urls[index], supabase.supabaseUrl) ? getResearchDownloadUrl(urls[index]) : null,
+          });
+        if (nextFiles.every((file) => file.type === "error")) throw new Error("Could not load any of the original paper files.");
+        if (nextFiles.some((file) => file.type !== "error" && !["pdf", "docx", "image"].includes(file.type))) {
           throw new Error("Unsupported manuscript file type.");
-        }
-        if (nextFiles.length === 1 && nextFiles[0].type === "pdf") {
-          window.location.replace(nextFiles[0].url);
-          return;
         }
         setFiles(nextFiles);
       })
@@ -67,8 +73,8 @@ export default function ResearchDocumentPreview() {
   }, [payload]);
 
   useEffect(() => {
-    document.title = payload?.title ? `${payload.title} - CSDRepoAI Preview` : "Paper Preview - CSDRepoAI";
-  }, [payload?.title]);
+    document.title = payload?.title ? `${payload.title} - ${payload.label || "manuscript"} - CSDRepoAI` : "Paper Preview - CSDRepoAI";
+  }, [payload?.title, payload?.label]);
 
   function closePreview() {
     window.close();
@@ -78,6 +84,7 @@ export default function ResearchDocumentPreview() {
   }
 
   const urls = normalizeResearchFileUrls(payload?.urls);
+  const downloadUrls = urls.filter((url) => isResearchStorageUrl(url, supabase.supabaseUrl));
 
   return (
     <main className="research-preview" data-zoom={Math.round(zoom * 100)}>
@@ -85,26 +92,31 @@ export default function ResearchDocumentPreview() {
         <button type="button" className="preview-tool preview-back" onClick={closePreview} title="Close preview" aria-label="Close preview">
           <ArrowLeft size={18} /> <span>Back</span>
         </button>
-        <strong className="research-preview-title">{payload?.title || "Research paper"}</strong>
+        <strong className="research-preview-title">{payload?.title || "Research paper"} - {payload?.label || "manuscript"}</strong>
         <div className="preview-tool-group" aria-label="Document controls">
           <button type="button" className="preview-tool" onClick={() => setZoom((value) => Math.max(.5, value - .1))} title="Zoom out" aria-label="Zoom out"><Minus size={18} /></button>
           <button type="button" className="preview-zoom-value" onClick={() => setZoom(1)} title="Reset zoom">{Math.round(zoom * 100)}%</button>
           <button type="button" className="preview-tool" onClick={() => setZoom((value) => Math.min(2, value + .1))} title="Zoom in" aria-label="Zoom in"><Plus size={18} /></button>
         </div>
         <button type="button" className="preview-tool" onClick={() => window.print()} title="Print paper" aria-label="Print paper"><Printer size={18} /><span>Print</span></button>
+        {downloadUrls.length === 1 && (
+          <a className="preview-tool" href={getResearchDownloadUrl(downloadUrls[0])} onClick={() => recordResearchDownload(payload?.paperId)} title="Download original file" aria-label="Download original file">
+            <Download size={18} /><span>Download</span>
+          </a>
+        )}
       </header>
 
       {loading && <p className="research-preview-status" role="status">Preparing paper preview...</p>}
       {error && (
         <section className="research-preview-error" role="alert">
-          <p>Preview is unavailable for this file. You can download the original manuscript instead.</p>
-          <OriginalDownloads urls={urls} />
+          <p>{error} You can download the original file instead.</p>
+          <OriginalDownloads urls={urls} paperId={payload?.paperId} />
         </section>
       )}
       {!loading && !error && (
         <div className="research-preview-pages">
           {files.map((file, index) => (
-            <PreviewFile key={`${file.url}-${index}`} file={file} index={index} title={payload?.title || "Research paper"} onError={setError} />
+            <PreviewFile key={`${file.url}-${index}`} file={file} index={index} title={payload?.title || "Research paper"} paperId={payload?.paperId} showPageDownload={downloadUrls.length > 1} onError={setError} />
           ))}
         </div>
       )}
@@ -112,8 +124,8 @@ export default function ResearchDocumentPreview() {
   );
 }
 
-function PreviewFile({ file, index, title, onError }) {
-  const [status, setStatus] = useState(file.type === "docx" ? "Loading original document..." : "");
+function PreviewFile({ file, index, title, paperId, showPageDownload, onError }) {
+  const [status, setStatus] = useState(["docx", "pdf"].includes(file.type) ? "Loading original document..." : "");
   const [actualType, setActualType] = useState(file.type);
   const [element, setElement] = useState(null);
 
@@ -167,10 +179,11 @@ function PreviewFile({ file, index, title, onError }) {
   return (
     <section className={`research-preview-page${actualType === "image" ? " research-preview-image-page" : ""}`}>
       {status && <p className="research-preview-status" role="status">{status}</p>}
-      {actualType === "image" && <img src={file.url} alt={`${title}, page ${index + 1}`} onError={() => onError("Preview is unavailable for this file. You can download the original manuscript instead.")} />}
-      {actualType === "pdf" && <iframe src={file.url} title={`${title}, page ${index + 1}`} />}
+      {actualType === "error" && <p className="research-preview-status" role="alert">Page {index + 1} could not be loaded. {file.error} {file.downloadUrl && <a href={file.downloadUrl} onClick={() => recordResearchDownload(paperId)}>Download original page</a>}</p>}
+      {actualType === "image" && <img src={file.url} alt={`${title}, page ${index + 1}`} onError={() => setStatus("This image could not be previewed. Use Download original below.")} />}
+      {actualType === "pdf" && <iframe src={file.url} title={`${title}, page ${index + 1}`} onLoad={() => setStatus("")} onError={() => setStatus("The PDF could not be displayed. Use Download original below.")} />}
       {actualType === "docx" && <div className="research-preview-docx" ref={setElement} />}
-      {filesNeedDownloadLink(file) && <a className="preview-page-download" href={file.downloadUrl}><Download size={15} /> Download original{index ? ` page ${index + 1}` : ""}</a>}
+      {showPageDownload && filesNeedDownloadLink(file) && <a className="preview-page-download" href={file.downloadUrl} onClick={() => recordResearchDownload(paperId)}><Download size={15} /> Download original page {index + 1}</a>}
     </section>
   );
 }
@@ -179,13 +192,13 @@ function filesNeedDownloadLink(file) {
   return Boolean(file.downloadUrl);
 }
 
-function OriginalDownloads({ urls }) {
+function OriginalDownloads({ urls, paperId }) {
   const validUrls = urls.filter((url) => isResearchStorageUrl(url, supabase.supabaseUrl));
   if (!validUrls.length) return null;
   return (
     <div className="preview-original-downloads">
       {validUrls.map((url, index) => (
-        <a key={`${url}-${index}`} href={getResearchDownloadUrl(url)}><Download size={15} /> Download original{validUrls.length > 1 ? ` ${index + 1}` : ""}</a>
+        <a key={`${url}-${index}`} href={getResearchDownloadUrl(url)} onClick={() => recordResearchDownload(paperId)}><Download size={15} /> Download original{validUrls.length > 1 ? ` ${index + 1}` : ""}</a>
       ))}
     </div>
   );

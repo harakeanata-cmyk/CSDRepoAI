@@ -1946,6 +1946,25 @@ textarea.input {
   text-decoration: underline;
 }
 
+.research-file-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.research-file-action-error {
+  flex-basis: 100%;
+  color: var(--danger-700, #a83232);
+  font-size: 12px;
+}
+
+.archive-research-actions {
+  display: flex;
+  max-width: 320px;
+  align-items: flex-start;
+}
+
 @media (max-width: 520px) {
   .search-result-heading {
     flex-direction: column;

@@ -3,8 +3,9 @@ import { useSearchParams } from "react-router-dom";
 import { FileText, FolderOpen, Archive as ArchiveIcon, X } from "lucide-react";
 import Layout from "../components/Layout";
 import { PageHeader, EmptyState } from "../components/ui";
-import { ensureApprovedResearchEmbeddings, getApprovedPapers, getResearchFileUrls, openResearchFile } from "../services/research";
+import { ensureApprovedResearchEmbeddings, getApprovedPapers, getResearchFileUrls } from "../services/research";
 import { SDG_LIST } from "../lib/sdgList";
+import ResearchFileActions from "../components/ResearchFileActions";
 
 export default function Archive() {
   const [papers, setPapers] = useState([]);
@@ -12,7 +13,6 @@ export default function Archive() {
   const [yearFilter, setYearFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [queryFilter, setQueryFilter] = useState("");
-  const [fileError, setFileError] = useState("");
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Supports deep-linking from the faculty sidebar's "Browse by SDG" list,
@@ -102,31 +102,19 @@ export default function Archive() {
                 <td>
                   <div className="archive-file-links">
                     {getResearchFileUrls(p.file_url).length > 0 && (
-                      <ResearchFileLink
-                        urls={getResearchFileUrls(p.file_url)}
-                        label="View manuscript"
-                        onClick={async (event) => {
-                          event.stopPropagation();
-                          setFileError("");
-                          try {
-                            await openResearchFile(p);
-                          } catch (error) {
-                            setFileError(error.message);
-                          }
-                        }}
-                      />
+                      <ResearchFileActions paper={p} field="file_url" label="manuscript" className="archive-research-actions" />
                     )}
                     {getResearchFileUrls(p.source_code_url).length > 0 && (
                       <ResearchFileLink urls={getResearchFileUrls(p.source_code_url)} label="View source code" icon={FolderOpen} />
                     )}
                     {getResearchFileUrls(p.ieee_paper_url).length > 0 && (
-                      <ResearchFileLink urls={getResearchFileUrls(p.ieee_paper_url)} label="View IEEE short paper" />
+                      <ResearchFileActions paper={p} field="ieee_paper_url" label="IEEE short paper" className="archive-research-actions" />
                     )}
                     {getResearchFileUrls(p.acm_paper_url).length > 0 && (
-                      <ResearchFileLink urls={getResearchFileUrls(p.acm_paper_url)} label="View ACM style paper" />
+                      <ResearchFileActions paper={p} field="acm_paper_url" label="ACM style paper" className="archive-research-actions" />
                     )}
                     {getResearchFileUrls(p.apa_paper_url).length > 0 && (
-                      <ResearchFileLink urls={getResearchFileUrls(p.apa_paper_url)} label="View APA style paper" />
+                      <ResearchFileActions paper={p} field="apa_paper_url" label="APA style paper" className="archive-research-actions" />
                     )}
                   </div>
                 </td>
@@ -257,7 +245,6 @@ export default function Archive() {
               {renderPaperTable(ocrPapers)}
             </section>
           )}
-          {fileError && <p className="auth-error" style={{ margin: "12px 0" }}>{fileError}</p>}
         </div>
       )}
     </Layout>

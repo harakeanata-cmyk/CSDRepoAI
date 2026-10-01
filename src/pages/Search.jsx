@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Search as SearchIcon, FileSearch, FolderOpen, Eye, ExternalLink } from "lucide-react";
+import { Search as SearchIcon, FileSearch, FolderOpen } from "lucide-react";
 import Layout from "../components/Layout";
 import { PageHeader, EmptyState } from "../components/ui";
 import { searchResearch } from "../services/search";
-import { openResearchPreviewInNewTab } from "../services/paperPreview";
 import { getResearchFileUrls, incrementViewCount } from "../services/research";
+import ResearchFileActions from "../components/ResearchFileActions";
 
 export default function Search() {
   const [query, setQuery] = useState("");
@@ -12,17 +12,6 @@ export default function Search() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState("");
-  const [previewError, setPreviewError] = useState("");
-
-  async function handlePreview(paper, urls, label) {
-    setPreviewError("");
-    try {
-      await openResearchPreviewInNewTab({ urls, title: paper.title, label });
-      incrementViewCount(paper.id);
-    } catch (previewRequestError) {
-      setPreviewError(previewRequestError.message || "Could not open the paper preview.");
-    }
-  }
 
   async function handleSearch(e) {
     e.preventDefault();
@@ -61,7 +50,6 @@ export default function Search() {
       </form>
 
       {error && <p className="auth-error" role="alert" style={{ marginBottom: 16 }}>{error}</p>}
-      {previewError && <p className="auth-error" role="alert" style={{ marginBottom: 16 }}>{previewError}</p>}
 
       {loading && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -113,8 +101,8 @@ export default function Search() {
                 <ResearchFileActions
                   paper={r}
                   urls={getResearchFileUrls(r.file_url)}
+                  field="file_url"
                   label="manuscript"
-                  onPreview={handlePreview}
                 />
               )}
               {getResearchFileUrls(r.source_code_url).length > 0 && (
@@ -129,44 +117,18 @@ export default function Search() {
                 </a>
               )}
               {getResearchFileUrls(r.ieee_paper_url).length > 0 && (
-                <ResearchFileActions paper={r} urls={getResearchFileUrls(r.ieee_paper_url)} label="IEEE paper" onPreview={handlePreview} />
+                <ResearchFileActions paper={r} urls={getResearchFileUrls(r.ieee_paper_url)} field="ieee_paper_url" label="IEEE paper" />
               )}
               {getResearchFileUrls(r.acm_paper_url).length > 0 && (
-                <ResearchFileActions paper={r} urls={getResearchFileUrls(r.acm_paper_url)} label="ACM paper" onPreview={handlePreview} />
+                <ResearchFileActions paper={r} urls={getResearchFileUrls(r.acm_paper_url)} field="acm_paper_url" label="ACM paper" />
               )}
               {getResearchFileUrls(r.apa_paper_url).length > 0 && (
-                <ResearchFileActions paper={r} urls={getResearchFileUrls(r.apa_paper_url)} label="APA paper" onPreview={handlePreview} />
+                <ResearchFileActions paper={r} urls={getResearchFileUrls(r.apa_paper_url)} field="apa_paper_url" label="APA paper" />
               )}
             </div>
           </div>
         ))}
       </div>
     </Layout>
-  );
-}
-
-function ResearchFileActions({ paper, urls, label, onPreview }) {
-  return (
-    <>
-      <button
-        type="button"
-        className="search-file-action search-file-preview"
-        onClick={() => onPreview(paper, urls, label)}
-        title="Open an inline paper preview in a new browser tab without saving the file."
-      >
-        <Eye size={13} /> Preview {label}
-      </button>
-      <a
-        href={urls[0]}
-        onClick={(event) => {
-          event.preventDefault();
-          onPreview(paper, urls, label);
-        }}
-        className="search-file-action"
-        title="Open this paper in the same preview viewer without downloading it."
-      >
-        <ExternalLink size={13} /> Open {label}
-      </a>
-    </>
   );
 }

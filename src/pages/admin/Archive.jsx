@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { FileText, FolderOpen, Archive as ArchiveIcon, Trash2 } from "lucide-react";
+import { FolderOpen, Archive as ArchiveIcon, Trash2 } from "lucide-react";
 import Layout from "../../components/Layout";
 import { PageHeader, EmptyState, StatGrid, StatCard } from "../../components/ui";
-import { deleteResearchPaper, getApprovedPapers, getResearchFileUrls, openResearchFile } from "../../services/research";
+import { deleteResearchPaper, getApprovedPapers, getResearchFileUrls } from "../../services/research";
+import ResearchFileActions from "../../components/ResearchFileActions";
 
 export default function Archive() {
   const [papers, setPapers] = useState([]);
@@ -10,7 +11,6 @@ export default function Archive() {
   const [yearFilter, setYearFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [queryFilter, setQueryFilter] = useState("");
-  const [fileError, setFileError] = useState("");
   const [deleteError, setDeleteError] = useState("");
   const [deletingId, setDeletingId] = useState(null);
   const [pendingDelete, setPendingDelete] = useState(null);
@@ -96,21 +96,10 @@ export default function Archive() {
                 <td>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
                     {getResearchFileUrls(p.file_url).length > 0 ? (
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          setFileError("");
-                          try {
-                            await openResearchFile(p);
-                          } catch (error) {
-                            setFileError(error.message);
-                          }
-                        }}
-                        style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, fontWeight: 600, color: "var(--brass-700)", background: "none", border: 0, cursor: "pointer", padding: 0, textDecoration: "underline" }}
-                      >
-                        <FileText size={13} /> View manuscript
+                      <div>
+                        <ResearchFileActions paper={p} field="file_url" label="manuscript" />
                         <span className="archive-file-format">{getFileFormat(getResearchFileUrls(p.file_url))}</span>
-                      </button>
+                      </div>
                     ) : (
                       <span style={{ color: "var(--ink-300)" }}>—</span>
                     )}
@@ -126,15 +115,16 @@ export default function Archive() {
                       </a>
                     )}
                     {getResearchFileUrls(p.ieee_paper_url).length > 0 && (
-                      <a
-                        href={getResearchFileUrls(p.ieee_paper_url)[0]}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, fontWeight: 600, color: "var(--brass-700)", textDecoration: "underline" }}
-                      >
-                        <FileText size={13} /> View IEEE short paper
+                      <div>
+                        <ResearchFileActions paper={p} field="ieee_paper_url" label="IEEE short paper" />
                         <span className="archive-file-format">{getFileFormat(getResearchFileUrls(p.ieee_paper_url))}</span>
-                      </a>
+                      </div>
+                    )}
+                    {getResearchFileUrls(p.acm_paper_url).length > 0 && (
+                      <div><ResearchFileActions paper={p} field="acm_paper_url" label="ACM style paper" /></div>
+                    )}
+                    {getResearchFileUrls(p.apa_paper_url).length > 0 && (
+                      <div><ResearchFileActions paper={p} field="apa_paper_url" label="APA style paper" /></div>
                     )}
                   </div>
                 </td>
@@ -230,7 +220,6 @@ export default function Archive() {
               {renderPaperTable(ocrPapers)}
             </section>
           )}
-          {fileError && <p className="auth-error" style={{ margin: "12px 0" }}>{fileError}</p>}
           {deleteError && <p className="auth-error" style={{ margin: "12px 0" }}>{deleteError}</p>}
         </div>
       )}

@@ -57,10 +57,15 @@ test("opens the app preview route instead of creating an about:blank document", 
 
   try {
     const urls = ["page-1.png", "page-2.webp"];
-    openResearchPreviewInNewTab({ urls, title: "Legacy paper", label: "manuscript" });
+    openResearchPreviewInNewTab({ urls, title: "Legacy paper", label: "IEEE short paper", paperId: "paper-123" });
     assert.equal(openedUrl.pathname, "/paper-preview");
     const key = openedUrl.searchParams.get("key");
-    assert.deepEqual(JSON.parse(values.get(key)).urls, urls);
+    assert.deepEqual(JSON.parse(values.get(key)), {
+      urls,
+      title: "Legacy paper",
+      label: "IEEE short paper",
+      paperId: "paper-123",
+    });
   } finally {
     if (previousWindow === undefined) delete globalThis.window;
     else globalThis.window = previousWindow;

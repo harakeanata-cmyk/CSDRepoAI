@@ -12,7 +12,10 @@ export async function prepareResearchPreviewFile(rawUrl, { checkMime = false } =
   if (type === "unknown" || type === "docx" || checkMime) {
     try {
       const response = await fetch(url.href, { method: "HEAD" });
-      if (response.ok) type = getResearchFileType(url.href, response.headers.get("content-type"));
+      if (response.ok) {
+        const detectedType = getResearchFileType(url.href, response.headers.get("content-type"));
+        if (detectedType !== "unknown") type = detectedType;
+      }
     } catch {
       if (type === "unknown") throw new Error("Could not identify this file type.");
     }

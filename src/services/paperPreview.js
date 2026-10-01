@@ -1,8 +1,8 @@
 const PREVIEW_STORAGE_PREFIX = "csdrepoai:paper-preview:";
 
-export function openResearchPreviewInNewTab({ urls, title, label = "manuscript" }) {
+export function openResearchPreviewInNewTab({ urls, title, label = "manuscript", paperId = null }) {
   const key = `${PREVIEW_STORAGE_PREFIX}${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const payload = JSON.stringify({ urls: Array.isArray(urls) ? urls : [], title, label });
+  const payload = JSON.stringify({ urls: Array.isArray(urls) ? urls : [], title, label, paperId });
   try {
     window.sessionStorage.setItem(key, payload);
   } catch {
@@ -16,4 +16,5 @@ export function openResearchPreviewInNewTab({ urls, title, label = "manuscript" 
     window.sessionStorage.removeItem(key);
     throw new Error("Allow pop-ups for this site to open paper previews in a new tab.");
   }
+  return previewTab;
 }

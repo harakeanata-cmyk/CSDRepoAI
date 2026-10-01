@@ -3,7 +3,8 @@ import { FileText, FolderOpen, Pencil, X } from "lucide-react";
 import Layout from "../../components/Layout";
 import { PageHeader, StatusBadge, EmptyState, Field, Button } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
-import { beginResearchEditing, cancelResearchEditing, getMySubmissions, openResearchFile, updateResearchSubmission } from "../../services/research";
+import { beginResearchEditing, cancelResearchEditing, getMySubmissions, updateResearchSubmission } from "../../services/research";
+import ResearchFileActions from "../../components/ResearchFileActions";
 import { analyzeResearchDocumentWithAI } from "../../services/metadataSuggestions";
 import { SDG_LIST } from "../../lib/sdgList";
 
@@ -267,9 +268,7 @@ export default function MySubmissions() {
               )}
               <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 10 }}>
                 {s.file_url && (
-                  <button type="button" onClick={() => openResearchFile(s).catch((error) => setEditActionError(error.message))} style={{ fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4, color: "var(--brass-700)", background: "none", border: 0, padding: 0, cursor: "pointer" }}>
-                    <FileText size={13} /> View manuscript
-                  </button>
+                  <ResearchFileActions paper={s} field="file_url" label="manuscript" />
                 )}
                 {s.source_code_url && (
                   <a href={s.source_code_url} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
@@ -277,19 +276,13 @@ export default function MySubmissions() {
                   </a>
                 )}
                 {s.ieee_paper_url && (
-                  <a href={s.ieee_paper_url} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                    <FileText size={13} /> View IEEE short paper
-                  </a>
+                  <ResearchFileActions paper={s} field="ieee_paper_url" label="IEEE short paper" />
                 )}
                 {s.acm_paper_url && (
-                  <a href={s.acm_paper_url} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                    <FileText size={13} /> View ACM style paper
-                  </a>
+                  <ResearchFileActions paper={s} field="acm_paper_url" label="ACM style paper" />
                 )}
                 {s.apa_paper_url && (
-                  <a href={s.apa_paper_url} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                    <FileText size={13} /> View APA style paper
-                  </a>
+                  <ResearchFileActions paper={s} field="apa_paper_url" label="APA style paper" />
                 )}
               </div>
               {editing?.id === s.id && editForm && (

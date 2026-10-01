@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { FileText, FolderOpen, Check, X, Clock, ClipboardCheck } from "lucide-react";
+import { FolderOpen, Check, X, Clock, ClipboardCheck } from "lucide-react";
 import Layout from "../../components/Layout";
 import { PageHeader, EmptyState } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
-import { getPendingSubmissions, openResearchFile, reviewSubmission } from "../../services/research";
+import { getPendingSubmissions, reviewSubmission } from "../../services/research";
+import ResearchFileActions from "../../components/ResearchFileActions";
 
 export default function ReviewApproval() {
   const { user } = useAuth();
@@ -73,9 +74,7 @@ export default function ReviewApproval() {
               <p style={{ fontSize: 13, marginTop: 10 }}>{p.abstract}</p>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 8 }}>
                 {p.file_url && (
-                  <button type="button" onClick={() => openResearchFile(p).catch((error) => setReviewError(error.message))} style={{ fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4, color: "var(--brass-700)", background: "none", border: 0, padding: 0, cursor: "pointer" }}>
-                    <FileText size={13} /> View manuscript
-                  </button>
+                  <ResearchFileActions paper={p} field="file_url" label="manuscript" />
                 )}
                 {p.source_code_url && (
                   <a href={p.source_code_url} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
@@ -83,19 +82,13 @@ export default function ReviewApproval() {
                   </a>
                 )}
                 {p.ieee_paper_url && (
-                  <a href={p.ieee_paper_url} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                    <FileText size={13} /> View IEEE short paper
-                  </a>
+                  <ResearchFileActions paper={p} field="ieee_paper_url" label="IEEE short paper" />
                 )}
                 {p.acm_paper_url && (
-                  <a href={p.acm_paper_url} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                    <FileText size={13} /> View ACM style paper
-                  </a>
+                  <ResearchFileActions paper={p} field="acm_paper_url" label="ACM style paper" />
                 )}
                 {p.apa_paper_url && (
-                  <a href={p.apa_paper_url} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                    <FileText size={13} /> View APA style paper
-                  </a>
+                  <ResearchFileActions paper={p} field="apa_paper_url" label="APA style paper" />
                 )}
               </div>
               <textarea

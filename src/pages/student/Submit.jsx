@@ -14,7 +14,8 @@ import {
 import Layout from "../../components/Layout";
 import { PageHeader, Field } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
-import { openResearchFile, submitResearch } from "../../services/research";
+import { submitResearch } from "../../services/research";
+import ResearchFileActions from "../../components/ResearchFileActions";
 import { checkResearchDuplicate, searchResearch } from "../../services/search";
 import { analyzeResearchDocumentWithAI, sanitizeResearchTitle, suggestMetadata } from "../../services/metadataSuggestions";
 import { SDG_LIST } from "../../lib/sdgList";
@@ -306,9 +307,7 @@ export default function Submit() {
               {(submittedPaper?.file_url || submittedPaper?.source_code_url || submittedPaper?.ieee_paper_url || submittedPaper?.acm_paper_url || submittedPaper?.apa_paper_url) && (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 16 }}>
                   {submittedPaper?.file_url && (
-                    <button type="button" onClick={() => openResearchFile(submittedPaper).catch((error) => setErrorMsg(error.message))} className="btn btn-outline" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                      View manuscript
-                    </button>
+                    <ResearchFileActions paper={submittedPaper} field="file_url" label="manuscript" />
                   )}
                   {submittedPaper?.source_code_url && (
                     <a href={submittedPaper.source_code_url} target="_blank" rel="noreferrer" className="btn btn-outline" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -316,19 +315,13 @@ export default function Submit() {
                     </a>
                   )}
                   {submittedPaper?.ieee_paper_url && (
-                    <a href={submittedPaper.ieee_paper_url} target="_blank" rel="noreferrer" className="btn btn-outline" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                      View IEEE short paper
-                    </a>
+                    <ResearchFileActions paper={submittedPaper} field="ieee_paper_url" label="IEEE short paper" />
                   )}
                   {submittedPaper?.acm_paper_url && (
-                    <a href={submittedPaper.acm_paper_url} target="_blank" rel="noreferrer" className="btn btn-outline" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                      View ACM style paper
-                    </a>
+                    <ResearchFileActions paper={submittedPaper} field="acm_paper_url" label="ACM style paper" />
                   )}
                   {submittedPaper?.apa_paper_url && (
-                    <a href={submittedPaper.apa_paper_url} target="_blank" rel="noreferrer" className="btn btn-outline" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                      View APA style paper
-                    </a>
+                    <ResearchFileActions paper={submittedPaper} field="apa_paper_url" label="APA style paper" />
                   )}
                 </div>
               )}

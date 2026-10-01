@@ -549,10 +549,15 @@ function getResearchStoragePath(url) {
   return markerIndex >= 0 ? decodeURIComponent(url.slice(markerIndex + marker.length)) : null;
 }
 
-export async function openResearchFile(paper) {
-  const urls = getResearchFileUrls(paper.file_url);
-  await openResearchPreviewInNewTab({ urls, title: paper.title, label: "manuscript" });
-  if (urls.length) incrementViewCount(paper.id);
+export async function openResearchFile(paper, field = "file_url", label = "manuscript") {
+  const urls = getResearchFileUrls(paper?.[field]);
+  if (!urls.length) throw new Error(`No ${label} file is available to preview.`);
+  await openResearchPreviewInNewTab({ urls, title: paper.title, label, paperId: paper.id });
+  if (paper.id) incrementViewCount(paper.id);
+}
+
+export function recordResearchDownload(paperId) {
+  if (paperId) incrementDownloadCount(paperId);
 }
 
 /** Submission Review and Approval Module: pending queue for admin */
