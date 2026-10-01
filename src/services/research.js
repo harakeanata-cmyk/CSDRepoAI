@@ -464,7 +464,63 @@ export async function getMySubmissions(userId) {
     .eq("submitted_by", userId)
     .order("created_at", { ascending: false });
   if (error) throw error;
-  return data;
+  if (!data?.length) return data || [];
+
+  const paperIds = data.map((paper) => paper.id);
+  const { data: activity, error: activityError } = await supabase
+    .from("submission_logs")
+    .select("id, paper_id, actor_id, detail, created_at")
+    .in("paper_id", paperIds)
+    .eq("action", "status_changed")
+    .order("created_at", { ascending: false });
+  if (activityError) throw activityError;
+
+  const reviewActivity = (activity || []).filter((entry) => ["approved", "rejected", "under_review"].includes(entry.detail?.status));
+  const accountIds = [...new Set([
+    ...data.map((paper) => paper.reviewed_by),
+    ...reviewActivity.map((entry) => entry.actor_id),
+  ].filter(Boolean))];
+  const accountById = new Map();
+
+  if (accountIds.length) {
+    const { data: accounts, error: accountsError } = await supabase
+      .from("profiles")
+      .select("id, full_name, role, faculty_number")
+      .in("id", accountIds);
+    if (accountsError) throw accountsError;
+    for (const account of accounts || []) accountById.set(account.id, account);
+  }
+
+  const activityByPaperId = new Map();
+  for (const entry of reviewActivity) {
+    const entries = activityByPaperId.get(entry.paper_id) || [];
+    entries.push({
+      id: entry.id,
+      status: entry.detail.status,
+      created_at: entry.created_at,
+      actor: accountById.get(entry.actor_id) || null,
+    });
+    activityByPaperId.set(entry.paper_id, entries);
+  }
+
+  return data.map((paper) => {
+    const history = activityByPaperId.get(paper.id) || [];
+    const currentReviewStatuses = ["approved", "rejected", "under_review"];
+    const currentStatusLogged = history.some((entry) => entry.status === paper.status);
+    if (currentReviewStatuses.includes(paper.status) && !currentStatusLogged) {
+      history.unshift({
+        id: `current-${paper.id}`,
+        status: paper.status,
+        created_at: paper.reviewed_at,
+        actor: accountById.get(paper.reviewed_by) || null,
+      });
+    }
+
+    return {
+      ...paper,
+      reviewActivity: history,
+    };
+  });
 }
 
 export async function beginResearchEditing({ paperId, userId }) {
