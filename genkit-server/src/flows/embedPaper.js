@@ -79,10 +79,19 @@ export const embedPaperFlow = ai.defineFlow(
     }
 
     if (Object.keys(updates).length) {
-      const { error: updateError } = await supabaseAdmin
+      let { error: updateError } = await supabaseAdmin
         .from("research_papers")
         .update(updates)
         .eq("id", paperId);
+
+      if (updateError?.code === "23505" && updates.embedding && updates.manuscript_sha256) {
+        console.warn("Manuscript fingerprint already exists; saving the semantic embedding without it.");
+        const { error: embeddingError } = await supabaseAdmin
+          .from("research_papers")
+          .update({ embedding: updates.embedding })
+          .eq("id", paperId);
+        updateError = embeddingError;
+      }
 
       if (updateError) throw updateError;
     }

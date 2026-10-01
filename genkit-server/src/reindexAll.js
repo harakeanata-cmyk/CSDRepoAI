@@ -6,14 +6,28 @@ import { embedPaperFlow } from "./flows/embedPaper.js";
  *  Embeds every paper that doesn't have an embedding yet (e.g. papers
  *  submitted before semantic search was added, or after a bulk import). */
 async function main() {
-  const { data: papers, error } = await supabaseAdmin
-    .from("research_papers")
-    .select("id, title")
-    .is("embedding", null);
+  const papers = [];
+  const pageSize = 500;
+  let lastId = "";
 
-  if (error) {
-    console.error("Failed to load papers:", error.message);
-    process.exit(1);
+  while (true) {
+    let query = supabaseAdmin
+      .from("research_papers")
+      .select("id, title")
+      .is("embedding", null)
+      .order("id")
+      .limit(pageSize);
+    if (lastId) query = query.gt("id", lastId);
+
+    const { data: page, error } = await query;
+    if (error) {
+      console.error("Failed to load papers:", error.message);
+      process.exit(1);
+    }
+    if (!page.length) break;
+    papers.push(...page);
+    lastId = page[page.length - 1].id;
+    if (page.length < pageSize) break;
   }
 
   if (!papers.length) {
@@ -24,17 +38,19 @@ async function main() {
   console.log(`Reindexing ${papers.length} paper(s)...`);
 
   let done = 0;
-  for (const paper of papers) {
+  let failed = 0;
+  for (const [index, paper] of papers.entries()) {
     try {
       await embedPaperFlow({ paperId: paper.id });
       done += 1;
-      console.log(`  [${done}/${papers.length}] embedded: ${paper.title}`);
+      console.log(`  [${index + 1}/${papers.length}] embedded`);
     } catch (err) {
-      console.error(`  failed to embed "${paper.title}" (${paper.id}):`, err.message);
+      failed += 1;
+      console.error(`  [${index + 1}/${papers.length}] failed:`, err.message);
     }
   }
 
-  console.log(`Done. Embedded ${done}/${papers.length} paper(s).`);
+  console.log(`Done. Embedded ${done}/${papers.length} paper(s); ${failed} failed.`);
 }
 
 main();
