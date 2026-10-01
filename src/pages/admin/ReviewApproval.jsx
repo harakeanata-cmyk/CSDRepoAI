@@ -3,7 +3,7 @@ import { FileText, FolderOpen, Check, X, Clock, ClipboardCheck } from "lucide-re
 import Layout from "../../components/Layout";
 import { PageHeader, EmptyState } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
-import { getPendingSubmissions, reviewSubmission } from "../../services/research";
+import { getPendingSubmissions, openResearchFile, reviewSubmission } from "../../services/research";
 
 export default function ReviewApproval() {
   const { user } = useAuth();
@@ -73,9 +73,9 @@ export default function ReviewApproval() {
               <p style={{ fontSize: 13, marginTop: 10 }}>{p.abstract}</p>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 8 }}>
                 {p.file_url && (
-                  <a href={p.file_url} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                  <button type="button" onClick={() => openResearchFile(p).catch((error) => setReviewError(error.message))} style={{ fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4, color: "var(--brass-700)", background: "none", border: 0, padding: 0, cursor: "pointer" }}>
                     <FileText size={13} /> View manuscript
-                  </a>
+                  </button>
                 )}
                 {p.source_code_url && (
                   <a href={p.source_code_url} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>

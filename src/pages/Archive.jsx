@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { FileText, FolderOpen, Archive as ArchiveIcon, X } from "lucide-react";
 import Layout from "../components/Layout";
 import { PageHeader, EmptyState } from "../components/ui";
-import { ensureApprovedResearchEmbeddings, getApprovedPapers, getResearchFileUrls, incrementViewCount, incrementDownloadCount, openResearchFile } from "../services/research";
+import { ensureApprovedResearchEmbeddings, getApprovedPapers, getResearchFileUrls, openResearchFile } from "../services/research";
 import { SDG_LIST } from "../lib/sdgList";
 
 export default function Archive() {
@@ -110,8 +110,6 @@ export default function Archive() {
                           setFileError("");
                           try {
                             await openResearchFile(p);
-                            await incrementViewCount(p.id);
-                            await incrementDownloadCount(p.id);
                           } catch (error) {
                             setFileError(error.message);
                           }
@@ -286,7 +284,7 @@ const FILE_FORMATS = {
 };
 
 function getFileFormat(urls) {
-  if (urls.length > 1) return "PDF";
+  if (urls.length > 1) return "PAGES";
   const rawUrl = String(urls[0] || "").split(/[?#]/, 1)[0];
   let path = rawUrl;
   try {

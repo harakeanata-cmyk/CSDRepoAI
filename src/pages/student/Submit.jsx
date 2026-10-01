@@ -14,7 +14,7 @@ import {
 import Layout from "../../components/Layout";
 import { PageHeader, Field } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
-import { submitResearch } from "../../services/research";
+import { openResearchFile, submitResearch } from "../../services/research";
 import { checkResearchDuplicate, searchResearch } from "../../services/search";
 import { analyzeResearchDocumentWithAI, sanitizeResearchTitle, suggestMetadata } from "../../services/metadataSuggestions";
 import { SDG_LIST } from "../../lib/sdgList";
@@ -306,9 +306,9 @@ export default function Submit() {
               {(submittedPaper?.file_url || submittedPaper?.source_code_url || submittedPaper?.ieee_paper_url || submittedPaper?.acm_paper_url || submittedPaper?.apa_paper_url) && (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 16 }}>
                   {submittedPaper?.file_url && (
-                    <a href={submittedPaper.file_url} target="_blank" rel="noreferrer" className="btn btn-outline" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    <button type="button" onClick={() => openResearchFile(submittedPaper).catch((error) => setErrorMsg(error.message))} className="btn btn-outline" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                       View manuscript
-                    </a>
+                    </button>
                   )}
                   {submittedPaper?.source_code_url && (
                     <a href={submittedPaper.source_code_url} target="_blank" rel="noreferrer" className="btn btn-outline" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>

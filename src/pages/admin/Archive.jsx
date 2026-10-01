@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FileText, FolderOpen, Archive as ArchiveIcon, Trash2 } from "lucide-react";
 import Layout from "../../components/Layout";
 import { PageHeader, EmptyState, StatGrid, StatCard } from "../../components/ui";
-import { deleteResearchPaper, getApprovedPapers, getResearchFileUrls, incrementViewCount, openResearchFile } from "../../services/research";
+import { deleteResearchPaper, getApprovedPapers, getResearchFileUrls, openResearchFile } from "../../services/research";
 
 export default function Archive() {
   const [papers, setPapers] = useState([]);
@@ -102,7 +102,6 @@ export default function Archive() {
                           setFileError("");
                           try {
                             await openResearchFile(p);
-                            await incrementViewCount(p.id);
                           } catch (error) {
                             setFileError(error.message);
                           }
@@ -302,7 +301,7 @@ const FILE_FORMATS = {
 };
 
 function getFileFormat(urls) {
-  if (urls.length > 1) return "PDF";
+  if (urls.length > 1) return "PAGES";
   const rawUrl = String(urls[0] || "").split(/[?#]/, 1)[0];
   let path = rawUrl;
   try {

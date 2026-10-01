@@ -2,8 +2,9 @@ import { supabase } from "../lib/supabaseClient";
 import { toGenkitEndpoint } from "../lib/genkitUrl.js";
 import { notifyResearchDataChanged } from "../lib/researchEvents";
 import { checkResearchDuplicate } from "./search";
-import { jsPDF } from "jspdf";
 import { createUniqueStorageToken } from "../lib/storagePath.js";
+import { openResearchPreviewInNewTab } from "./paperPreview";
+import { normalizeResearchFileUrls } from "../lib/researchFilePreview";
 
 function buildStoragePath(userId, file) {
   const originalName = file?.name || "upload";
@@ -539,15 +540,7 @@ export async function deleteResearchPaper(paper) {
 }
 
 export function getResearchFileUrls(fileUrl) {
-  if (!fileUrl) return [];
-  if (Array.isArray(fileUrl)) return fileUrl.filter(Boolean);
-
-  try {
-    const parsed = JSON.parse(fileUrl);
-    return Array.isArray(parsed) ? parsed.filter(Boolean) : [fileUrl];
-  } catch {
-    return [fileUrl];
-  }
+  return normalizeResearchFileUrls(fileUrl);
 }
 
 function getResearchStoragePath(url) {
@@ -556,93 +549,10 @@ function getResearchStoragePath(url) {
   return markerIndex >= 0 ? decodeURIComponent(url.slice(markerIndex + marker.length)) : null;
 }
 
-async function blobToDataUrl(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(reader.error || new Error("Could not read research page."));
-    reader.readAsDataURL(blob);
-  });
-}
-
-async function loadResearchImage(url) {
-  let blob;
-  const storageMarker = "/storage/v1/object/public/research-files/";
-  const markerIndex = url.indexOf(storageMarker);
-  if (markerIndex >= 0) {
-    const storagePath = decodeURIComponent(url.slice(markerIndex + storageMarker.length));
-    const { data, error } = await supabase.storage.from("research-files").download(storagePath);
-    if (error) throw new Error(`Could not load archived page: ${error.message}`);
-    blob = data;
-  } else {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`Could not load archived page (${response.status}).`);
-    blob = await response.blob();
-  }
-  const dataUrl = await blobToDataUrl(blob);
-  const image = await new Promise((resolve, reject) => {
-    const element = new Image();
-    element.onload = () => resolve(element);
-    element.onerror = () => reject(new Error("Could not prepare an archived research page."));
-    element.src = dataUrl;
-  });
-  return { dataUrl, image };
-}
-
-async function createLegacyResearchPdf(urls) {
-  const pdf = new jsPDF({ unit: "pt", format: "a4" });
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-
-  for (let index = 0; index < urls.length; index += 1) {
-    const { dataUrl, image } = await loadResearchImage(urls[index]);
-    const scale = Math.min(pageWidth / image.width, pageHeight / image.height);
-    const width = image.width * scale;
-    const height = image.height * scale;
-    if (index > 0) pdf.addPage();
-    pdf.addImage(dataUrl, "JPEG", (pageWidth - width) / 2, (pageHeight - height) / 2, width, height);
-  }
-
-  return pdf.output("blob");
-}
-
 export async function openResearchFile(paper) {
   const urls = getResearchFileUrls(paper.file_url);
-  if (!urls.length) return;
-
-  if (urls.length === 1) {
-    window.open(urls[0], "_blank", "noopener,noreferrer");
-    return;
-  }
-
-  const popup = window.open("", "_blank");
-  if (popup) popup.document.write("<p>Preparing research document...</p>");
-
-  try {
-    const pdfBlob = await createLegacyResearchPdf(urls);
-    const pdfUrl = URL.createObjectURL(pdfBlob);
-
-    try {
-      const path = `ocr-scans/${createUniqueStorageToken()}_research.pdf`;
-      const { error: uploadError } = await supabase.storage.from("research-files").upload(path, pdfBlob, {
-        contentType: "application/pdf",
-        upsert: false,
-      });
-      if (!uploadError) {
-        const { data: publicFile } = supabase.storage.from("research-files").getPublicUrl(path);
-        const { error: updateError } = await supabase.from("research_papers").update({ file_url: publicFile.publicUrl }).eq("id", paper.id);
-        if (updateError) console.warn("Converted PDF opened but could not update archive record.", updateError.message);
-      }
-    } catch (conversionSaveError) {
-      console.warn("Could not save converted OCR PDF; opening temporary PDF instead.", conversionSaveError);
-    }
-
-    if (popup) popup.location.href = pdfUrl;
-    else window.open(pdfUrl, "_blank", "noopener,noreferrer");
-  } catch (error) {
-    if (popup) popup.close();
-    throw new Error(`Could not create the research PDF. ${error.message}`);
-  }
+  await openResearchPreviewInNewTab({ urls, title: paper.title, label: "manuscript" });
+  if (urls.length) incrementViewCount(paper.id);
 }
 
 /** Submission Review and Approval Module: pending queue for admin */
