@@ -67,6 +67,7 @@ export default function Layout({ children }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState({});
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [logoutPending, setLogoutPending] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [seenNotificationIds, setSeenNotificationIds] = useState([]);
   const [notifications, setNotifications] = useState([]);
@@ -115,10 +116,10 @@ export default function Layout({ children }) {
   }
 
   async function handleSignOut() {
-    setProfileMenuOpen(false);
     try {
       await signOut();
     } finally {
+      setLogoutPending(false);
       navigate("/login");
     }
   }
@@ -334,7 +335,7 @@ export default function Layout({ children }) {
                   <NavLink to={`/${role}/profile`} className="portal-profile-edit" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
                     <User size={14} /> Edit profile
                   </NavLink>
-                  <button type="button" className="portal-profile-logout" role="menuitem" onClick={handleSignOut}>
+                  <button type="button" className="portal-profile-logout" role="menuitem" onClick={() => { setProfileMenuOpen(false); setLogoutPending(true); }}>
                     <LogOut size={14} /> Log out
                   </button>
                 </div>
@@ -353,6 +354,21 @@ export default function Layout({ children }) {
         </header>
         {children}
       </main>
+      {logoutPending && (
+        <div className="logout-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setLogoutPending(false); }}>
+          <div className="logout-dialog" role="alertdialog" aria-modal="true" aria-labelledby="topbar-logout-title">
+            <div className="logout-dialog-icon"><LogOut size={18} /></div>
+            <div>
+              <h2 id="topbar-logout-title">Are you sure you want to log out?</h2>
+              <p>Your current session will be ended.</p>
+            </div>
+            <div className="logout-dialog-actions">
+              <button type="button" className="btn btn-outline" onClick={() => setLogoutPending(false)}>Cancel</button>
+              <button type="button" className="btn btn-primary" onClick={handleSignOut}>Yes, log out</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

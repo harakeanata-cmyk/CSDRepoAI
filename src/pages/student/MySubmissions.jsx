@@ -260,6 +260,33 @@ export default function MySubmissions() {
               <p style={{ fontSize: 12, color: "var(--ink-500)", marginTop: 3 }}>
                 Submitted {new Date(s.created_at).toLocaleDateString()}
               </p>
+              {s.reviewActivity?.length > 0 && (
+                <div style={{ marginTop: 10, padding: 10, borderRadius: 8, background: "var(--surface-sunken)" }}>
+                  <strong style={{ fontSize: 12.5 }}>Review activity</strong>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6 }}>
+                    {s.reviewActivity.map((entry) => {
+                      const action = entry.status === "approved"
+                        ? "Approved"
+                        : entry.status === "rejected"
+                          ? "Rejected"
+                          : "Marked under review";
+                      const reviewerRole = entry.actor?.role
+                        ? entry.actor.role.charAt(0).toUpperCase() + entry.actor.role.slice(1)
+                        : "";
+
+                      return (
+                        <div key={entry.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap", fontSize: 12.5 }}>
+                          <span>
+                            {action} by <strong>{entry.actor?.full_name || "account not recorded"}</strong>
+                            {reviewerRole && <span style={{ color: "var(--ink-500)" }}> ({reviewerRole}{entry.actor?.faculty_number ? ` · ${entry.actor.faculty_number}` : ""})</span>}
+                          </span>
+                          {entry.created_at && <time style={{ color: "var(--ink-500)", fontSize: 11.5 }} dateTime={entry.created_at}>{new Date(entry.created_at).toLocaleString()}</time>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <p style={{ fontSize: 13, marginTop: 10 }}>{s.abstract}</p>
               {s.review_notes && (
                 <p style={{ fontSize: 12.5, marginTop: 10, background: "var(--surface-sunken)", padding: 10, borderRadius: 8 }}>
