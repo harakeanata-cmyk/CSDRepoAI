@@ -750,6 +750,26 @@ a {
   white-space: nowrap;
 }
 
+.portal-profile-logout {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 4px;
+  padding: 9px 2px 2px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: transparent;
+  color: var(--danger-700);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.portal-profile-logout:hover {
+  color: var(--danger-600);
+}
+
 .portal-profile-menu a {
   padding-top: 8px;
   border-top: 1px solid var(--line);

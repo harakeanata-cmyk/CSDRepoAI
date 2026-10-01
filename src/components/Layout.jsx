@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Upload,
@@ -17,7 +17,9 @@ import {
   Target,
   ChevronDown,
   ClipboardList,
-  Settings as SettingsIcon,
+  LogOut,
+  Moon,
+  Sun,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { SDG_LIST } from "../lib/sdgList";
@@ -32,7 +34,6 @@ const NAV_ITEMS = {
     { type: "sdg-group", key: "sdg", label: "Browse by SDG", icon: Target, basePath: "/student/archive" },
     { to: "/student/search", label: "AI Search", icon: SearchIcon },
     { to: "/student/profile", label: "Profile", icon: User },
-    { to: "/student/settings", label: "Settings", icon: SettingsIcon },
   ],
   faculty: [
     { to: "/faculty", label: "Dashboard", end: true, icon: LayoutDashboard },
@@ -42,7 +43,6 @@ const NAV_ITEMS = {
     { to: "/faculty/review", label: "Review & Approval", icon: ClipboardCheck },
     { to: "/faculty/analytics", label: "Research Analytics", icon: BarChart3 },
     { to: "/faculty/profile", label: "Profile", icon: User },
-    { to: "/faculty/settings", label: "Settings", icon: SettingsIcon },
   ],
   admin: [
     { to: "/admin", label: "Dashboard", end: true, icon: LayoutDashboard },
@@ -54,7 +54,6 @@ const NAV_ITEMS = {
     { to: "/admin/search", label: "AI Search", icon: SearchIcon },
     { to: "/admin/analytics", label: "Research Analytics", icon: BarChart3 },
     { to: "/admin/profile", label: "Profile", icon: User },
-    { to: "/admin/settings", label: "Settings", icon: SettingsIcon },
   ],
 };
 
@@ -65,8 +64,9 @@ const ROLE_LABEL = {
 };
 
 export default function Layout({ children }) {
-  const { profile, role, user } = useAuth();
+  const { profile, role, user, signOut } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState({});
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
@@ -74,6 +74,7 @@ export default function Layout({ children }) {
   const [seenNotificationIds, setSeenNotificationIds] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
   const notificationsOpenRef = useRef(false);
   const notificationStorageKey = profile?.id ? `csdrepoai-notifications-seen:${profile.id}` : null;
   const themeKey = profile?.id ? `csdrepoai-theme:${profile.id}` : null;
@@ -105,8 +106,25 @@ export default function Layout({ children }) {
 
   useEffect(() => {
     const nextDarkMode = themeKey && localStorage.getItem(themeKey) === "dark";
+    setDarkMode(Boolean(nextDarkMode));
     document.documentElement.dataset.theme = nextDarkMode ? "dark" : "light";
   }, [themeKey]);
+
+  function toggleTheme() {
+    const nextDarkMode = !darkMode;
+    if (themeKey) localStorage.setItem(themeKey, nextDarkMode ? "dark" : "light");
+    setDarkMode(nextDarkMode);
+    document.documentElement.dataset.theme = nextDarkMode ? "dark" : "light";
+  }
+
+  async function handleSignOut() {
+    setProfileMenuOpen(false);
+    try {
+      await signOut();
+    } finally {
+      navigate("/login");
+    }
+  }
 
   useEffect(() => {
     let mounted = true;
@@ -299,11 +317,28 @@ export default function Layout({ children }) {
       <main className="app-main">
         <header className="portal-topbar">
           <div className="portal-topbar-actions">
+            <button
+              type="button"
+              className="portal-icon-button portal-theme-button"
+              onClick={toggleTheme}
+              aria-label={`Switch to ${darkMode ? "light" : "dark"} mode`}
+              title={`Switch to ${darkMode ? "light" : "dark"} mode`}
+            >
+              {darkMode ? <Sun size={17} /> : <Moon size={17} />}
+            </button>
             <div className="portal-profile-menu-wrap">
-              <button type="button" className="portal-profile-button" onClick={() => setProfileMenuOpen((open) => !open)} aria-expanded={profileMenuOpen}>
+              <button type="button" className="portal-profile-button" onClick={() => setProfileMenuOpen((open) => !open)} aria-expanded={profileMenuOpen} aria-haspopup="menu">
                 <span className="portal-profile-avatar">{initials}</span><span className="portal-profile-name">{profileName}</span><ChevronDown size={14} />
               </button>
-              {profileMenuOpen && <div className="portal-profile-menu"><strong>{profileName}</strong><span className="portal-profile-email">{accountEmail}</span></div>}
+              {profileMenuOpen && (
+                <div className="portal-profile-menu" role="menu">
+                  <strong>{profileName}</strong>
+                  <span className="portal-profile-email">{accountEmail}</span>
+                  <button type="button" className="portal-profile-logout" role="menuitem" onClick={handleSignOut}>
+                    <LogOut size={14} /> Log out
+                  </button>
+                </div>
+              )}
             </div>
             <div className="portal-notification-wrap">
               <button type="button" className="portal-icon-button" aria-label={`Notifications${unreadNotificationCount ? `, ${unreadNotificationCount} new updates` : notifications.length ? ", recent updates already viewed" : ""}`} title="Notifications" aria-expanded={notificationsOpen} onClick={toggleNotifications}><Bell size={17} />{notifications.length > 0 && <span className={`portal-notification-count${unreadNotificationCount === 0 ? " is-seen" : ""}`}>{displayedNotificationCount > 99 ? "99+" : displayedNotificationCount}</span>}</button>
