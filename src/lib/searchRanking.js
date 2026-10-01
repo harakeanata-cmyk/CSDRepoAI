@@ -10,7 +10,7 @@ const SEARCH_FIELDS = [
   ["abstract", 1.3],
   ["ocr_raw_text", 0.5],
 ];
-const MIN_SEMANTIC_SIMILARITY = 0.56;
+const MIN_SEMANTIC_SIMILARITY = 0.53;
 
 export function rankSearchResults(query, textItems, semanticItems) {
   const byId = new Map();
@@ -57,7 +57,10 @@ export function getSearchMatch(query, item) {
   const confidence = lexicalScore === 100
     ? 100
     : Math.round(lexicalScore * 0.65 + semanticEvidence * 35);
-  const relevant = lexicalScore >= 24 || semanticSimilarity >= MIN_SEMANTIC_SIMILARITY;
+  const minimumLexicalCoverage = tokens.length > 1 ? 0.6 : 0.45;
+  const relevant = Boolean(exactField)
+    || semanticSimilarity >= MIN_SEMANTIC_SIMILARITY
+    || (tokens.length > 0 && weightedCoverage >= minimumLexicalCoverage);
   return { confidence, relevant };
 }
 

@@ -31,6 +31,15 @@ test("filters weak semantic-only matches but keeps strong semantic matches", () 
   assert.deepEqual(results.map(({ id }) => id), ["strong"]);
 });
 
+test("rejects an incidental single-term match for a multiword query", () => {
+  const results = rankSearchResults("mobile application", [], [
+    { id: "incidental", title: "Transformer Translation Model", abstract: "A mobile tool for field researchers", similarity: 0.5 },
+    { id: "related", title: "Mobile Housing Application", similarity: 0.54 },
+  ]);
+
+  assert.deepEqual(results.map(({ id }) => id), ["related"]);
+});
+
 test("combines text and semantic copies without duplicating a paper", () => {
   const results = rankSearchResults("flood monitoring", [
     { id: "paper", title: "Flood Monitoring System", similarity: 0 },
