@@ -77,12 +77,9 @@ ${safeDocumentText}`;
     let response;
     try {
       response = await ai.generate({
-        model: googleAI.model("gemini-2.0-flash"),
+        model: googleAI.model("gemini-3.8-flash"),
         prompt,
         output: { schema: outputSchema },
-        config: {
-          temperature: 0.2,
-        },
       });
     } catch (error) {
       console.error("[genkit] metadata model failed; returning empty fields for local fallback:", error);

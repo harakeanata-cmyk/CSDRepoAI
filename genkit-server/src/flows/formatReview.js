@@ -29,10 +29,9 @@ Headings detected that are uncommon in the archive: ${unusualSections.join(", ")
 Return one or two short sentences. Explicitly say the format differs from the archived papers and name the most relevant detected difference. Do not invent sections.`;
 
     const response = await ai.generate({
-      model: googleAI.model("gemini-2.0-flash"),
+      model: googleAI.model("gemini-3.8-flash"),
       prompt,
       output: { schema: formatReviewSchema },
-      config: { temperature: 0.2 },
     });
 
     return { message: String(response.output?.message || "").trim() };
