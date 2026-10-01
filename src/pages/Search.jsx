@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Search as SearchIcon, FileSearch, FolderOpen, Eye, ExternalLink } from "lucide-react";
 import Layout from "../components/Layout";
 import { PageHeader, EmptyState } from "../components/ui";
-import ResearchPreview from "../components/ResearchPreview";
 import { searchResearch } from "../services/search";
+import { openResearchPreviewInNewTab } from "../services/paperPreview";
 import { getResearchFileUrls, incrementViewCount } from "../services/research";
 
 export default function Search() {
@@ -12,7 +12,17 @@ export default function Search() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState("");
-  const [preview, setPreview] = useState(null);
+  const [previewError, setPreviewError] = useState("");
+
+  async function handlePreview(paper, urls, label) {
+    setPreviewError("");
+    try {
+      await openResearchPreviewInNewTab({ urls, title: paper.title, label });
+      incrementViewCount(paper.id);
+    } catch (previewRequestError) {
+      setPreviewError(previewRequestError.message || "Could not open the paper preview.");
+    }
+  }
 
   async function handleSearch(e) {
     e.preventDefault();
@@ -51,6 +61,7 @@ export default function Search() {
       </form>
 
       {error && <p className="auth-error" role="alert" style={{ marginBottom: 16 }}>{error}</p>}
+      {previewError && <p className="auth-error" role="alert" style={{ marginBottom: 16 }}>{previewError}</p>}
 
       {loading && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -103,7 +114,7 @@ export default function Search() {
                   paper={r}
                   urls={getResearchFileUrls(r.file_url)}
                   label="manuscript"
-                  onPreview={setPreview}
+                  onPreview={handlePreview}
                 />
               )}
               {getResearchFileUrls(r.source_code_url).length > 0 && (
@@ -118,26 +129,18 @@ export default function Search() {
                 </a>
               )}
               {getResearchFileUrls(r.ieee_paper_url).length > 0 && (
-                <ResearchFileActions paper={r} urls={getResearchFileUrls(r.ieee_paper_url)} label="IEEE paper" onPreview={setPreview} />
+                <ResearchFileActions paper={r} urls={getResearchFileUrls(r.ieee_paper_url)} label="IEEE paper" onPreview={handlePreview} />
               )}
               {getResearchFileUrls(r.acm_paper_url).length > 0 && (
-                <ResearchFileActions paper={r} urls={getResearchFileUrls(r.acm_paper_url)} label="ACM paper" onPreview={setPreview} />
+                <ResearchFileActions paper={r} urls={getResearchFileUrls(r.acm_paper_url)} label="ACM paper" onPreview={handlePreview} />
               )}
               {getResearchFileUrls(r.apa_paper_url).length > 0 && (
-                <ResearchFileActions paper={r} urls={getResearchFileUrls(r.apa_paper_url)} label="APA paper" onPreview={setPreview} />
+                <ResearchFileActions paper={r} urls={getResearchFileUrls(r.apa_paper_url)} label="APA paper" onPreview={handlePreview} />
               )}
             </div>
           </div>
         ))}
       </div>
-      {preview && (
-        <ResearchPreview
-          title={preview.paper.title}
-          label={preview.label}
-          urls={preview.urls}
-          onClose={() => setPreview(null)}
-        />
-      )}
     </Layout>
   );
 }
@@ -148,10 +151,8 @@ function ResearchFileActions({ paper, urls, label, onPreview }) {
       <button
         type="button"
         className="search-file-action search-file-preview"
-        onClick={() => {
-          incrementViewCount(paper.id);
-          onPreview({ paper, urls, label });
-        }}
+        onClick={() => onPreview(paper, urls, label)}
+        title="Open an inline paper preview in a new browser tab without saving the file."
       >
         <Eye size={13} /> Preview {label}
       </button>
