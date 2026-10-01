@@ -33,7 +33,6 @@ const NAV_ITEMS = {
     { to: "/student/archive", label: "Research Archive", icon: ArchiveIcon },
     { type: "sdg-group", key: "sdg", label: "Browse by SDG", icon: Target, basePath: "/student/archive" },
     { to: "/student/search", label: "AI Search", icon: SearchIcon },
-    { to: "/student/profile", label: "Profile", icon: User },
   ],
   faculty: [
     { to: "/faculty", label: "Dashboard", end: true, icon: LayoutDashboard },
@@ -42,7 +41,6 @@ const NAV_ITEMS = {
     { to: "/faculty/search", label: "AI Search", icon: SearchIcon },
     { to: "/faculty/review", label: "Review & Approval", icon: ClipboardCheck },
     { to: "/faculty/analytics", label: "Research Analytics", icon: BarChart3 },
-    { to: "/faculty/profile", label: "Profile", icon: User },
   ],
   admin: [
     { to: "/admin", label: "Dashboard", end: true, icon: LayoutDashboard },
@@ -53,7 +51,6 @@ const NAV_ITEMS = {
     { to: "/admin/archive", label: "Research Archive", icon: ArchiveIcon },
     { to: "/admin/search", label: "AI Search", icon: SearchIcon },
     { to: "/admin/analytics", label: "Research Analytics", icon: BarChart3 },
-    { to: "/admin/profile", label: "Profile", icon: User },
   ],
 };
 
@@ -334,6 +331,9 @@ export default function Layout({ children }) {
                 <div className="portal-profile-menu" role="menu">
                   <strong>{profileName}</strong>
                   <span className="portal-profile-email">{accountEmail}</span>
+                  <NavLink to={`/${role}/profile`} className="portal-profile-edit" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
+                    <User size={14} /> Edit profile
+                  </NavLink>
                   <button type="button" className="portal-profile-logout" role="menuitem" onClick={handleSignOut}>
                     <LogOut size={14} /> Log out
                   </button>

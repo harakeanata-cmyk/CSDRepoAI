@@ -755,9 +755,8 @@ a {
   align-items: center;
   gap: 7px;
   margin-top: 4px;
-  padding: 9px 2px 2px;
+  padding: 5px 2px 2px;
   border: 0;
-  border-top: 1px solid var(--line);
   background: transparent;
   color: var(--danger-700);
   font: inherit;
@@ -771,6 +770,9 @@ a {
 }
 
 .portal-profile-menu a {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   padding-top: 8px;
   border-top: 1px solid var(--line);
   color: var(--brass-700);
