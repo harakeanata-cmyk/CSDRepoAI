@@ -4,5 +4,5 @@ export const PROGRAM_OPTIONS = [
   { value: "BSIS", label: "Bachelor of Science in Information Systems (BSIS)" },
   { value: "BSCpE", label: "Bachelor of Science in Computer Engineering (BSCpE)" },
   { value: "Associate/Diploma in Computer Technology", label: "Associate/Diploma in Computer Technology" },
-  { value: "BLISS", label: "BLISS" },
+  { value: "BLISS", label: "Bachelor of Library and Information Science (BLISS)" },
 ];
