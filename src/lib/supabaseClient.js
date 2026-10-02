@@ -17,7 +17,6 @@ function normalizeSupabaseUrl(url) {
 
 const supabaseUrl = normalizeSupabaseUrl(viteEnv.VITE_SUPABASE_URL || "https://example.supabase.co");
 const supabaseAnonKey = viteEnv.VITE_SUPABASE_ANON_KEY || "public-anon-key";
-const supabaseServiceKey = viteEnv.VITE_SUPABASE_SERVICE_ROLE?.trim() || null;
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.warn(
@@ -43,10 +42,3 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: true,
   },
 });
-export const supabaseService =
-  supabaseServiceKey
-    ? createClient(supabaseUrl, supabaseServiceKey, {
-        auth: { persistSession: false, detectSessionInUrl: false },
-      })
-    : null;
-export const supabaseServiceConfigured = !!supabaseService;

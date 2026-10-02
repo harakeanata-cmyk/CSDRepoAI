@@ -241,11 +241,6 @@ export default function UserManagement() {
         <div className="card">
           <EmptyState icon={Users} title="Unable to load users">
             <div style={{ whiteSpace: "pre-wrap" }}>{loadError}</div>
-            {loadError.toLowerCase().includes("invalid api key") && (
-              <div style={{ marginTop: 8 }}>
-                The API key appears invalid. Replace the key with the correct service role key and restart the dev server.
-              </div>
-            )}
           </EmptyState>
         </div>
       ) : loading ? (

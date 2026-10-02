@@ -1,5 +1,11 @@
-import { supabase, supabaseService, supabaseServiceConfigured } from "../lib/supabaseClient";
+import { supabase } from "../lib/supabaseClient";
 import { assertValidPersonNameFields } from "../lib/nameValidation";
+import { toGenkitEndpoint } from "../lib/genkitUrl.js";
+
+const ADMIN_USERS_URL = toGenkitEndpoint(
+  import.meta.env.VITE_GENKIT_SEARCH_URL || (import.meta.env.PROD && typeof window !== "undefined" ? window.location.origin : "http://localhost:8787"),
+  "admin/users",
+);
 
 export function shouldFallbackDeleteError(error) {
   if (!error?.message) return false;
@@ -9,15 +15,18 @@ export function shouldFallbackDeleteError(error) {
 
 /** User Management Module: list all users, optionally filtered by role */
 export async function getUsers({ role } = {}) {
-  const buildRequest = (client) => {
-    let request = client.from("profiles").select("*").order("created_at", { ascending: false });
-    if (role) request = request.eq("role", role);
-    return request;
-  };
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw sessionError;
+  const accessToken = sessionData.session?.access_token;
+  if (!accessToken) throw new Error("Please sign in again to load the user directory.");
 
-  const { data, error } = await buildRequest(supabase);
-  if (error) throw error;
-  return data || [];
+  const query = role ? `?role=${encodeURIComponent(role)}` : "";
+  const response = await fetch(`${ADMIN_USERS_URL}${query}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.error || "Unable to load the user directory.");
+  return result.users || [];
 }
 
 export async function createUserAccount({ email, password, full_name, first_name, middle_name, last_name, suffix, role, student_number, faculty_number, program }) {
@@ -39,34 +48,19 @@ export async function createUserAccount({ email, password, full_name, first_name
     program,
   };
 
-  if (supabaseServiceConfigured && supabaseService?.auth?.admin?.createUser) {
-    const { data, error } = await supabaseService.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: metadata,
-    });
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw sessionError;
+  const accessToken = sessionData.session?.access_token;
+  if (!accessToken) throw new Error("Please sign in again to create a user account.");
 
-    if (!error) return data;
-
-    const message = (error.message || "").toLowerCase();
-    if (message.includes("invalid api key") || message.includes("401") || message.includes("unauthorized")) {
-      console.warn("Supabase service key failed, falling back to anon signup:", error);
-    } else {
-      throw error;
-    }
-  }
-
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      emailRedirectTo: window.location.origin,
-      data: metadata,
-    },
+  const response = await fetch(ADMIN_USERS_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify({ email, password, ...metadata }),
   });
-  if (error) throw error;
-  return data;
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.error || "Unable to create the account.");
+  return result.user;
 }
 
 /** User Management Module: change a user's role */
