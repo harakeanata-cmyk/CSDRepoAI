@@ -7,8 +7,10 @@ import { getResearchFileUrls, incrementViewCount } from "../services/research";
 import ResearchFileActions from "../components/ResearchFileActions";
 
 export default function Search() {
+  const RESULTS_PER_PAGE = 5;
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
+  const [visibleResultCount, setVisibleResultCount] = useState(RESULTS_PER_PAGE);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState("");
@@ -18,6 +20,7 @@ export default function Search() {
     setLoading(true);
     setSearched(true);
     setError("");
+    setVisibleResultCount(RESULTS_PER_PAGE);
     try {
       const data = await searchResearch(query);
       setResults(data);
@@ -74,7 +77,7 @@ export default function Search() {
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {results.map((r) => (
+        {results.slice(0, visibleResultCount).map((r) => (
           <div key={r.id} className="card card-pad">
             <div className="search-result-heading">
               <h3>{r.title}</h3>
@@ -129,6 +132,18 @@ export default function Search() {
           </div>
         ))}
       </div>
+
+      {!loading && results.length > visibleResultCount && (
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 20 }}>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={() => setVisibleResultCount((count) => count + RESULTS_PER_PAGE)}
+          >
+            Show more ({results.length - visibleResultCount} remaining)
+          </button>
+        </div>
+      )}
     </Layout>
   );
 }
