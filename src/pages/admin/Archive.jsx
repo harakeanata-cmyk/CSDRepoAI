@@ -92,12 +92,12 @@ export default function Archive() {
           <tbody>
             {records.map((p) => (
               <tr key={p.id}>
-                <td style={{ fontWeight: 600, maxWidth: 320 }}>{p.title}</td>
-                <td style={{ color: "var(--ink-500)" }}>{(p.authors || []).join(", ") || "—"}</td>
-                <td>{p.academic_year || "—"}</td>
-                <td><AccountDetails account={p.submitterAccount} /></td>
-                <td><AccountDetails account={p.approverAccount} /></td>
-                <td className="admin-archive-file-cell">
+                <td data-label="Title" style={{ fontWeight: 600, maxWidth: 320 }}>{p.title}</td>
+                <td data-label="Authors" style={{ color: "var(--ink-500)" }}>{(p.authors || []).join(", ") || "—"}</td>
+                <td data-label="Year">{p.academic_year || "—"}</td>
+                <td data-label="Submitted By"><AccountDetails account={p.submitterAccount} /></td>
+                <td data-label="Approved By"><AccountDetails account={p.approverAccount} /></td>
+                <td data-label="Files" className="admin-archive-file-cell">
                   <div className="admin-archive-file-content">
                     {getResearchFileUrls(p.file_url).length > 0 ? (
                       <div className="admin-archive-file-item">
@@ -133,7 +133,7 @@ export default function Archive() {
                     )}
                   </div>
                 </td>
-                <td>
+                <td data-label="Action">
                   <button
                     type="button"
                     className="btn btn-danger btn-sm"

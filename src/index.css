@@ -3073,6 +3073,98 @@ table.admin-archive-table td:nth-child(7) { width: 8%; }
     min-width: 560px;
   }
 
+  .admin-archive-table-wrap {
+    overflow: visible;
+  }
+
+  table.admin-archive-table {
+    display: block;
+    min-width: 0;
+    table-layout: auto;
+  }
+
+  table.admin-archive-table thead {
+    display: none;
+  }
+
+  table.admin-archive-table tbody {
+    display: grid;
+    gap: 12px;
+  }
+
+  table.admin-archive-table tbody tr {
+    display: block;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+  }
+
+  table.admin-archive-table tbody tr:hover {
+    background: var(--surface);
+  }
+
+  table.admin-archive-table tbody td,
+  table.admin-archive-table tbody td:nth-child(n) {
+    display: grid;
+    grid-template-columns: minmax(88px, 0.34fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 12px;
+    width: auto;
+    padding: 11px 13px;
+    overflow-wrap: anywhere;
+  }
+
+  table.admin-archive-table tbody td::before {
+    content: attr(data-label);
+    color: var(--ink-500);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    line-height: 1.5;
+    text-transform: uppercase;
+  }
+
+  table.admin-archive-table tbody td:first-child {
+    display: block;
+    padding-top: 14px;
+    background: var(--surface-sunken);
+    color: var(--ink-900);
+    font-size: 14px;
+  }
+
+  table.admin-archive-table tbody td:first-child::before {
+    display: block;
+    margin-bottom: 5px;
+  }
+
+  table.admin-archive-table tbody td.admin-archive-file-cell {
+    grid-template-columns: minmax(88px, 0.34fr) minmax(0, 1fr);
+  }
+
+  .admin-archive-file-content {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .admin-archive-file-item,
+  .admin-archive-file-actions {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .admin-archive-file-actions .search-file-action,
+  .admin-archive-extra-file {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  table.admin-archive-table tbody td:last-child .btn {
+    justify-self: start;
+  }
+
   .auth-panel {
     padding: 24px;
   }
