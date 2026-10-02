@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Search as SearchIcon, FileSearch, FolderOpen } from "lucide-react";
 import Layout from "../components/Layout";
 import { PageHeader, EmptyState } from "../components/ui";
@@ -6,14 +6,49 @@ import { searchResearch } from "../services/search";
 import { getResearchFileUrls, incrementViewCount } from "../services/research";
 import ResearchFileActions from "../components/ResearchFileActions";
 
+const SEARCH_STATE_KEY = "csdrepoai_semantic_search_state";
+const RESULTS_PER_PAGE = 5;
+
+function readSearchState() {
+  try {
+    const saved = JSON.parse(window.sessionStorage.getItem(SEARCH_STATE_KEY) || "null");
+    if (!saved || typeof saved !== "object") return null;
+    return {
+      query: typeof saved.query === "string" ? saved.query : "",
+      results: Array.isArray(saved.results) ? saved.results : [],
+      visibleResultCount: Number.isInteger(saved.visibleResultCount) && saved.visibleResultCount > 0
+        ? saved.visibleResultCount
+        : RESULTS_PER_PAGE,
+      searched: saved.searched === true,
+      error: typeof saved.error === "string" ? saved.error : "",
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default function Search() {
-  const RESULTS_PER_PAGE = 5;
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState([]);
-  const [visibleResultCount, setVisibleResultCount] = useState(RESULTS_PER_PAGE);
+  const [initialState] = useState(readSearchState);
+  const [query, setQuery] = useState(() => initialState?.query || "");
+  const [results, setResults] = useState(() => initialState?.results || []);
+  const [visibleResultCount, setVisibleResultCount] = useState(() => initialState?.visibleResultCount || RESULTS_PER_PAGE);
   const [loading, setLoading] = useState(false);
-  const [searched, setSearched] = useState(false);
-  const [error, setError] = useState("");
+  const [searched, setSearched] = useState(() => initialState?.searched || false);
+  const [error, setError] = useState(() => initialState?.error || "");
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(SEARCH_STATE_KEY, JSON.stringify({
+        query,
+        results,
+        visibleResultCount,
+        searched,
+        error,
+      }));
+    } catch {
+      // Search remains usable when browser storage is unavailable or full.
+    }
+  }, [query, results, visibleResultCount, searched, error]);
 
   async function handleSearch(e) {
     e.preventDefault();

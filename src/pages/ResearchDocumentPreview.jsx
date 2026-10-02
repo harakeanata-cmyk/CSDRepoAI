@@ -27,9 +27,10 @@ export default function ResearchDocumentPreview() {
   const payload = previewData?.payload;
 
   useEffect(() => {
+    // Keep this tab's unique payload in its sessionStorage so a refresh can
+    // rebuild the authorized preview. Each preview tab has its own storage copy.
     window.opener = null;
-    if (previewData?.key) window.sessionStorage.removeItem(previewData.key);
-  }, [previewData]);
+  }, []);
 
   useEffect(() => {
     if (!payload) {
