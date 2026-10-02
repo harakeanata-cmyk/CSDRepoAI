@@ -702,8 +702,10 @@ export async function getPendingSubmissions() {
 
 export async function getAuditTrail({ limit = 10 } = {}) {
   const { data, error } = await supabase
-    .from("submission_logs")
-    .select("*, paper:paper_id(title), actor:actor_id(full_name)")
+    .from("public_notifications")
+    .select("id, paper_id, notification_type, actor_id, created_at, paper:paper_id!inner(title, status, is_active), actor:actor_id(full_name)")
+    .eq("paper.status", "approved")
+    .eq("paper.is_active", true)
     .order("created_at", { ascending: false })
     .limit(limit);
 
@@ -711,6 +713,7 @@ export async function getAuditTrail({ limit = 10 } = {}) {
 
   return (data || []).map((entry) => ({
     ...entry,
+    action: entry.notification_type,
     paperTitle: entry.paper?.title || "Unknown paper",
     actorName: entry.actor?.full_name || "System",
   }));

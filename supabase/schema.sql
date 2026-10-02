@@ -237,6 +237,47 @@ create table if not exists submission_logs (
   created_at timestamptz default now()
 );
 
+-- Safe repository activity shown to every signed-in user's notification bell.
+create table if not exists public_notifications (
+  id uuid primary key default gen_random_uuid(),
+  paper_id uuid not null references research_papers(id) on delete cascade,
+  notification_type text not null default 'paper_published'
+    check (notification_type = 'paper_published'),
+  actor_id uuid references profiles(id),
+  created_at timestamptz not null default now(),
+  unique (paper_id, notification_type)
+);
+
+create or replace function public.notify_paper_published()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  should_notify boolean;
+begin
+  if tg_op = 'INSERT' then
+    should_notify := true;
+  else
+    should_notify := old.status is distinct from 'approved'
+      or old.is_active is distinct from true;
+  end if;
+
+  if should_notify and new.status = 'approved' and new.is_active then
+    insert into public.public_notifications (paper_id, notification_type, actor_id)
+    values (new.id, 'paper_published', coalesce(new.reviewed_by, new.submitted_by))
+    on conflict (paper_id, notification_type) do nothing;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists research_paper_publish_notification on public.research_papers;
+create trigger research_paper_publish_notification
+  after insert or update of status, is_active on public.research_papers
+  for each row execute function public.notify_paper_published();
+
 create table if not exists academic_years (
   id uuid primary key default gen_random_uuid(),
   label text not null unique,
@@ -345,6 +386,7 @@ on conflict (id) do nothing;
 alter table profiles enable row level security;
 alter table research_papers enable row level security;
 alter table submission_logs enable row level security;
+alter table public_notifications enable row level security;
 alter table academic_years enable row level security;
 alter table system_evaluations enable row level security;
 alter table sdg_list enable row level security;
@@ -412,6 +454,10 @@ create policy "logs_select_own_submission_activity" on submission_logs for selec
 drop policy if exists "logs_insert_any" on submission_logs;
 create policy "logs_insert_any" on submission_logs for insert
   with check (auth.role() = 'authenticated');
+
+drop policy if exists "public_notifications_select_authenticated" on public_notifications;
+create policy "public_notifications_select_authenticated" on public_notifications for select
+  using (auth.role() = 'authenticated');
 
 -- Academic years: authenticated users can read the list; admins can manage it
 -- for the repository-wide term catalog used by submissions and OCR review.

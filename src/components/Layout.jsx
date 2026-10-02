@@ -201,6 +201,7 @@ export default function Layout({ children }) {
   }
 
   function formatNotificationAction(action) {
+    if (action === "paper_published") return "Research paper published";
     return String(action || "activity").replaceAll("_", " ");
   }
 
