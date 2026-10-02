@@ -4,7 +4,7 @@ import { toGenkitEndpoint } from "../lib/genkitUrl.js";
 
 const ADMIN_USERS_URL = toGenkitEndpoint(
   import.meta.env.VITE_GENKIT_SEARCH_URL || (import.meta.env.PROD && typeof window !== "undefined" ? window.location.origin : "http://localhost:8787"),
-  "admin/users",
+  "api/admin/users",
 );
 
 export function shouldFallbackDeleteError(error) {

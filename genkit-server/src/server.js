@@ -37,7 +37,7 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json({ limit: "1mb" }));
 
-app.get("/admin/users", async (req, res) => {
+app.get("/api/admin/users", async (req, res) => {
   const accessToken = req.headers.authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
   if (!accessToken) return res.status(401).json({ error: "Authentication is required." });
 
@@ -83,7 +83,7 @@ app.get("/admin/users", async (req, res) => {
   }
 });
 
-app.post("/admin/users", async (req, res) => {
+app.post("/api/admin/users", async (req, res) => {
   const accessToken = req.headers.authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
   if (!accessToken) return res.status(401).json({ error: "Authentication is required." });
 

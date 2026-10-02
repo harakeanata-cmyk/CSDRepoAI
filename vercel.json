@@ -1,7 +1,7 @@
 {
   "routes": [
     {
-      "src": "/(search|check-duplicate|embed|metadata|extract-metadata|format-review|health|admin/users)",
+      "src": "/(search|check-duplicate|embed|metadata|extract-metadata|format-review|health|api/admin/users)",
       "dest": "/api/index.js"
     },
     { "handle": "filesystem" },
