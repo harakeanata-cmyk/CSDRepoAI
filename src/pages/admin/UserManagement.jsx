@@ -4,7 +4,6 @@ import Layout from "../../components/Layout";
 import { PageHeader, EmptyState, Avatar, StatGrid, StatCard, Field, Button } from "../../components/ui";
 import { createUserAccount, getUsers, updateUserRole, setUserActive } from "../../services/users";
 import { validatePassword } from "../../lib/authValidation";
-import { supabaseServiceConfigured } from "../../lib/supabaseClient";
 import { validatePersonNameFields } from "../../lib/nameValidation";
 import { PROGRAM_OPTIONS } from "../../lib/programs";
 import { useAuth } from "../../context/AuthContext";
@@ -242,12 +241,6 @@ export default function UserManagement() {
         <div className="card">
           <EmptyState icon={Users} title="Unable to load users">
             <div style={{ whiteSpace: "pre-wrap" }}>{loadError}</div>
-            {!supabaseServiceConfigured && (
-              <div style={{ marginTop: 10 }}>
-                This usually means the Supabase service role key is missing or invalid. Please set `VITE_SUPABASE_SERVICE_ROLE` in your project's `.env` to your Supabase
-                service_role key and restart the app.
-              </div>
-            )}
             {loadError.toLowerCase().includes("invalid api key") && (
               <div style={{ marginTop: 8 }}>
                 The API key appears invalid. Replace the key with the correct service role key and restart the dev server.

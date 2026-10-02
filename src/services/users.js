@@ -15,16 +15,7 @@ export async function getUsers({ role } = {}) {
     return request;
   };
 
-  let { data, error } = await buildRequest(supabase);
-  if (error && supabaseServiceConfigured) {
-    const fallback = await buildRequest(supabaseService);
-    if (fallback.error) {
-      throw fallback.error;
-    }
-    data = fallback.data;
-    error = null;
-  }
-
+  const { data, error } = await buildRequest(supabase);
   if (error) throw error;
   return data || [];
 }
