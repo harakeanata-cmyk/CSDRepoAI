@@ -299,6 +299,73 @@ export default function Layout({ children }) {
           })}
         </nav>
 
+        <div className="mobile-sidebar-footer">
+          <div className="mobile-sidebar-account">
+            <span className="portal-profile-avatar">{initials}</span>
+            <div>
+              <strong>{profileName}</strong>
+              <span>{accountEmail}</span>
+            </div>
+          </div>
+          <NavLink
+            to={`/${role}/profile`}
+            className="mobile-sidebar-action"
+            onClick={() => setMenuOpen(false)}
+          >
+            <User size={16} /> Profile
+          </NavLink>
+          <button
+            type="button"
+            className="mobile-sidebar-action"
+            onClick={toggleTheme}
+            aria-label={`Switch to ${darkMode ? "light" : "dark"} mode`}
+          >
+            {darkMode ? <Sun size={16} /> : <Moon size={16} />}
+            {darkMode ? "Light mode" : "Dark mode"}
+          </button>
+          <button
+            type="button"
+            className="mobile-sidebar-action"
+            onClick={toggleNotifications}
+            aria-expanded={notificationsOpen}
+          >
+            <Bell size={16} /> Notifications
+            {displayedNotificationCount > 0 && (
+              <span className="mobile-sidebar-notification-count">
+                {displayedNotificationCount > 99 ? "99+" : displayedNotificationCount}
+              </span>
+            )}
+          </button>
+          {notificationsOpen && (
+            <div className="mobile-sidebar-notifications" role="dialog" aria-label="Recent repository activity">
+              {notificationsLoading ? (
+                <div className="portal-notification-empty">Loading activity...</div>
+              ) : notifications.length === 0 ? (
+                <div className="portal-notification-empty">No recent activity.</div>
+              ) : notifications.map((entry) => (
+                <div className="portal-notification-item" key={entry.id}>
+                  <span className="portal-notification-item-dot" />
+                  <div>
+                    <strong>{formatNotificationAction(entry.action)}</strong>
+                    <span>{entry.paperTitle}</span>
+                    <small>{entry.actorName} · {formatNotificationTime(entry.created_at)}</small>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <button
+            type="button"
+            className="mobile-sidebar-action mobile-sidebar-logout"
+            onClick={() => {
+              setMenuOpen(false);
+              setLogoutPending(true);
+            }}
+          >
+            <LogOut size={16} /> Log out
+          </button>
+        </div>
+
       </aside>
       <main className="app-main">
         <header className="portal-topbar">

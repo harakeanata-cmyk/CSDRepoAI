@@ -2570,6 +2570,10 @@ table.admin-archive-table td:nth-child(7) { width: 8%; }
   gap: 2px;
 }
 
+.mobile-sidebar-footer {
+  display: none;
+}
+
 .sidebar-link {
   display: flex;
   align-items: center;
@@ -3081,6 +3085,123 @@ table.admin-archive-table td:nth-child(7) { width: 8%; }
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+  }
+
+  .mobile-sidebar-footer {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 48%;
+    overflow-y: auto;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  .mobile-sidebar-account {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 10px;
+    padding: 3px 9px 9px;
+  }
+
+  .mobile-sidebar-account .portal-profile-avatar {
+    flex: 0 0 auto;
+    background: var(--brass-600);
+    color: #fff;
+  }
+
+  .mobile-sidebar-account > div {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .mobile-sidebar-account strong,
+  .mobile-sidebar-account span:not(.portal-profile-avatar) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-sidebar-account strong {
+    color: #fff;
+    font-size: 12px;
+  }
+
+  .mobile-sidebar-account span:not(.portal-profile-avatar) {
+    color: rgba(255, 255, 255, 0.58);
+    font-size: 10px;
+  }
+
+  .mobile-sidebar-action {
+    display: flex;
+    width: 100%;
+    min-height: 38px;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: rgba(255, 255, 255, 0.8);
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 550;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .mobile-sidebar-action:hover,
+  .mobile-sidebar-action:focus-visible {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+  }
+
+  .mobile-sidebar-action > svg {
+    flex: 0 0 auto;
+    opacity: 0.85;
+  }
+
+  .mobile-sidebar-notification-count {
+    margin-left: auto;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: var(--danger-600);
+    color: #fff;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 700;
+  }
+
+  .mobile-sidebar-notifications {
+    max-height: 180px;
+    overflow-y: auto;
+    margin: 2px 0 6px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: var(--radius-sm);
+    background: rgba(0, 0, 0, 0.16);
+  }
+
+  .mobile-sidebar-notifications .portal-notification-item {
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .mobile-sidebar-notifications .portal-notification-item strong,
+  .mobile-sidebar-notifications .portal-notification-item span {
+    color: #fff;
+  }
+
+  .mobile-sidebar-notifications .portal-notification-item small,
+  .mobile-sidebar-notifications .portal-notification-empty {
+    color: rgba(255, 255, 255, 0.62);
+  }
+
+  .mobile-sidebar-logout {
+    color: #ffc4c4;
   }
 
   .sidebar-backdrop.open {
