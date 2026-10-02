@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { Download, Eye, FileDown, FolderOpen, CheckCircle2, Clock, XCircle, Users2, GraduationCap, UserCog, UserCheck, UserX, Search, CalendarDays, Filter, X } from "lucide-react";
 import Layout from "../components/Layout";
+import { normalizeAcademicYear } from "../lib/academicYear";
 import { PageHeader, StatGrid, StatCard } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 import { subscribeToResearchDataChanges } from "../lib/researchEvents";
@@ -58,16 +59,19 @@ export default function Analytics() {
   }, [role]);
 
   const schoolYears = useMemo(() => [...new Set(
-    (data?.rawPapers || []).map((paper) => paper.academic_year).filter(Boolean),
+    (data?.rawPapers || []).map((paper) => normalizeAcademicYear(paper.academic_year)).filter(Boolean),
   )].sort((a, b) => b.localeCompare(a)), [data]);
   const programs = useMemo(() => [...new Set(
     (data?.rawPapers || []).map((paper) => paper.program).filter(Boolean),
   )].sort((a, b) => a.localeCompare(b)), [data]);
   const filteredPapers = useMemo(() => (data?.rawPapers || []).filter((paper) =>
-    (schoolYearFilter === "all" || paper.academic_year === schoolYearFilter)
+    (schoolYearFilter === "all" || normalizeAcademicYear(paper.academic_year) === schoolYearFilter)
     && (programFilter === "all" || paper.program === programFilter)
   ), [data, schoolYearFilter, programFilter]);
-  const filteredData = useMemo(() => summarizeAnalytics(filteredPapers), [filteredPapers]);
+  const filteredData = useMemo(() => summarizeAnalytics(filteredPapers.map((paper) => ({
+    ...paper,
+    academic_year: normalizeAcademicYear(paper.academic_year),
+  }))), [filteredPapers]);
 
   if (loading) {
     return (

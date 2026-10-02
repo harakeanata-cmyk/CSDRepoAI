@@ -6,6 +6,7 @@ import { PageHeader, EmptyState } from "../components/ui";
 import { ensureApprovedResearchEmbeddings, getApprovedPapers, getResearchFileUrls } from "../services/research";
 import { SDG_LIST } from "../lib/sdgList";
 import ResearchFileActions from "../components/ResearchFileActions";
+import { normalizeAcademicYear } from "../lib/academicYear";
 
 export default function Archive() {
   const [papers, setPapers] = useState([]);
@@ -34,7 +35,7 @@ export default function Archive() {
   }, []);
 
   const years = useMemo(() => {
-    const set = new Set(papers.map((p) => p.academic_year).filter(Boolean));
+    const set = new Set(papers.map((p) => normalizeAcademicYear(p.academic_year)).filter(Boolean));
     return ["all", ...Array.from(set).sort().reverse()];
   }, [papers]);
 
@@ -48,7 +49,7 @@ export default function Archive() {
   );
 
   const filtered = papers.filter((p) => {
-    const matchesYear = yearFilter === "all" || p.academic_year === yearFilter;
+    const matchesYear = yearFilter === "all" || normalizeAcademicYear(p.academic_year) === yearFilter;
     const matchesSource =
       sourceFilter === "all" ||
       (sourceFilter === "ocr_scanned" ? p.source === "ocr_scanned" : p.source !== "ocr_scanned");

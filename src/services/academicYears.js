@@ -1,4 +1,16 @@
 import { supabase } from "../lib/supabaseClient";
+import { normalizeAcademicYear, validateAcademicYear } from "../lib/academicYear";
+
+async function ensureAcademicYearIsUnique(label, excludeId = null) {
+  let query = supabase.from("academic_years").select("id, label");
+  if (excludeId) query = query.neq("id", excludeId);
+  const { data, error } = await query;
+  if (error) throw error;
+
+  if ((data || []).some((year) => normalizeAcademicYear(year.label) === label)) {
+    throw new Error(`Academic year ${label} already exists.`);
+  }
+}
 
 export async function getAcademicYears({ activeOnly = false } = {}) {
   let query = supabase
@@ -16,10 +28,8 @@ export async function getAcademicYears({ activeOnly = false } = {}) {
 }
 
 export async function createAcademicYear({ label, is_active = true, sort_order = 0 } = {}) {
-  const normalizedLabel = (label || "").trim();
-  if (!normalizedLabel) {
-    throw new Error("Academic year is required.");
-  }
+  const normalizedLabel = validateAcademicYear(label);
+  await ensureAcademicYearIsUnique(normalizedLabel);
 
   const { data, error } = await supabase
     .from("academic_years")
@@ -39,10 +49,8 @@ export async function updateAcademicYear(id, updates = {}) {
   const payload = { ...updates };
 
   if (payload.label !== undefined) {
-    payload.label = payload.label.trim();
-    if (!payload.label) {
-      throw new Error("Academic year is required.");
-    }
+    payload.label = validateAcademicYear(payload.label);
+    await ensureAcademicYearIsUnique(payload.label, id);
   }
 
   const { data, error } = await supabase
