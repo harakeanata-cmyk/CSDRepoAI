@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDownAZ, ArrowUpAZ, Download, Eye, EyeOff, Filter, Plus, RefreshCw, Search, ShieldCheck, UserCheck, Users, UserRound } from "lucide-react";
+import { ArrowDownAZ, ArrowUpAZ, Download, Eye, EyeOff, Filter, Plus, RefreshCw, Search, ShieldCheck, UserCheck, Users, UserCog, UserRound } from "lucide-react";
 import Layout from "../../components/Layout";
 import { PageHeader, EmptyState, Avatar, StatGrid, StatCard, Field, Button } from "../../components/ui";
 import { createUserAccount, getUsers, updateUserRole, setUserActive } from "../../services/users";
@@ -188,7 +188,8 @@ export default function UserManagement() {
         <div className="users-metric-grid">
           <StatCard label="Total accounts" value={users.length} accent="brass" icon={Users} hint="All roles" />
           <StatCard label="Active now" value={activeCount} accent="success" icon={UserCheck} hint={users.length ? `${Math.round((activeCount / users.length) * 100)}% of directory` : "No accounts yet"} />
-          <StatCard label="Students" value={studentCount} accent="info" icon={UserRound} hint={`${facultyCount} faculty`} />
+          <StatCard label="Students" value={studentCount} accent="info" icon={UserRound} />
+          <StatCard label="Faculty" value={facultyCount} accent="info" icon={UserCog} />
           <StatCard label="Admins" value={adminCount} accent="warning" icon={ShieldCheck} hint="Privileged access" />
         </div>
       </section>
