@@ -28,6 +28,7 @@ import { suggestKeywordsWithAI, suggestMetadata } from "../../services/metadataS
 import { getAcademicYears } from "../../services/academicYears";
 import { useUnloadWarning } from "../../lib/useUnloadWarning";
 import { SDG_LIST } from "../../lib/sdgList";
+import { PROGRAM_OPTIONS } from "../../lib/programs";
 
 const STEPS = [
   { key: "upload", label: "Upload" },
@@ -782,11 +783,9 @@ function handleFile(e) {
           <Field label={<span><GraduationCap size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Program</span>}>
             <select className="input" value={meta.program} onChange={(e) => setMeta((m) => ({ ...m, program: e.target.value }))} required>
               <option value="">Select program</option>
-              <option value="BSIT">Bachelor of Science in Information Technology (BSIT)</option>
-              <option value="BSCS">Bachelor of Science in Computer Science (BSCS)</option>
-              <option value="BSIS">Bachelor of Science in Information Systems (BSIS)</option>
-              <option value="BSCpE">Bachelor of Science in Computer Engineering (BSCpE)</option>
-              <option value="Associate/Diploma in Computer Technology">Associate/Diploma in Computer Technology</option>
+              {PROGRAM_OPTIONS.map((program) => (
+                <option key={program.value} value={program.value}>{program.label}</option>
+              ))}
             </select>
           </Field>
 

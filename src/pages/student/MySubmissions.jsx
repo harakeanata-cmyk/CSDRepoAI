@@ -7,6 +7,7 @@ import { beginResearchEditing, cancelResearchEditing, getMySubmissions, updateRe
 import ResearchFileActions from "../../components/ResearchFileActions";
 import { analyzeResearchDocumentWithAI } from "../../services/metadataSuggestions";
 import { SDG_LIST } from "../../lib/sdgList";
+import { PROGRAM_OPTIONS } from "../../lib/programs";
 
 const EMPTY_FILES = { manuscript: null, sourceCode: null, ieee: null, acm: null, apa: null };
 
@@ -352,11 +353,9 @@ export default function MySubmissions() {
                     <Field label="Program">
                       <select className="input" value={editForm.program} onChange={updateEditField("program")} required>
                         <option value="">Select program</option>
-                        <option value="BSIT">Bachelor of Science in Information Technology (BSIT)</option>
-                        <option value="BSCS">Bachelor of Science in Computer Science (BSCS)</option>
-                        <option value="BSIS">Bachelor of Science in Information Systems (BSIS)</option>
-                        <option value="BSCpE">Bachelor of Science in Computer Engineering (BSCpE)</option>
-                        <option value="Associate/Diploma in Computer Technology">Associate/Diploma in Computer Technology</option>
+                        {PROGRAM_OPTIONS.map((program) => (
+                          <option key={program.value} value={program.value}>{program.label}</option>
+                        ))}
                       </select>
                     </Field>
                     <Field label="Keywords (comma-separated)">

@@ -6,6 +6,7 @@ import { createUserAccount, getUsers, updateUserRole, setUserActive } from "../.
 import { validatePassword } from "../../lib/authValidation";
 import { supabaseServiceConfigured } from "../../lib/supabaseClient";
 import { validatePersonNameFields } from "../../lib/nameValidation";
+import { PROGRAM_OPTIONS } from "../../lib/programs";
 
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
@@ -430,11 +431,9 @@ export default function UserManagement() {
                     required
                   >
                     <option value="">Select program</option>
-                    <option value="BSIT">Bachelor of Science in Information Technology (BSIT)</option>
-                    <option value="BSCS">Bachelor of Science in Computer Science (BSCS)</option>
-                    <option value="BSIS">Bachelor of Science in Information Systems (BSIS)</option>
-                    <option value="BSCpE">Bachelor of Science in Computer Engineering (BSCpE)</option>
-                    <option value="Associate/Diploma in Computer Technology">Associate/Diploma in Computer Technology</option>
+                    {PROGRAM_OPTIONS.map((program) => (
+                      <option key={program.value} value={program.value}>{program.label}</option>
+                    ))}
                   </select>
                 </Field>
               </>

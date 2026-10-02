@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { validatePassword } from "../lib/authValidation";
 import { updateProfile } from "../services/users";
 import { validatePersonNameFields } from "../lib/nameValidation";
+import { PROGRAM_OPTIONS } from "../lib/programs";
 
 export default function Profile() {
   const { profile, user, updatePassword } = useAuth();
@@ -131,7 +132,15 @@ export default function Profile() {
           {profile?.role === "student" && (
             <>
               <Field label="Program">
-                <input className="input" value={form.program} onChange={(e) => setForm((f) => ({ ...f, program: e.target.value }))} />
+                <select className="input" value={form.program} onChange={(e) => setForm((f) => ({ ...f, program: e.target.value }))}>
+                  <option value="">Select program</option>
+                  {!PROGRAM_OPTIONS.some((program) => program.value === form.program) && form.program && (
+                    <option value={form.program}>{form.program}</option>
+                  )}
+                  {PROGRAM_OPTIONS.map((program) => (
+                    <option key={program.value} value={program.value}>{program.label}</option>
+                  ))}
+                </select>
               </Field>
               <Field label="Student number">
                 <input className="input" value={form.student_number} onChange={(e) => setForm((f) => ({ ...f, student_number: e.target.value }))} />
