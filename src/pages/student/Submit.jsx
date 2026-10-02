@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { jsPDF } from "jspdf";
 import {
@@ -23,6 +23,8 @@ import { PROGRAM_OPTIONS } from "../../lib/programs";
 import { wrapReceiptValue } from "../../lib/receiptFormatting";
 import { getAcademicYears } from "../../services/academicYears";
 import { useUnloadWarning } from "../../lib/useUnloadWarning";
+import { validateResearchUploadFile, MAX_RESEARCH_UPLOAD_SIZE_LABEL } from "../../lib/researchUploadValidation";
+import { classifyResearchDocument, getDocumentConfidenceLabel, getExpectedDocumentType, DOCUMENT_CONFIDENCE } from "../../lib/researchDocumentType";
 
 function buildDefaultForm(profile) {
   return {
@@ -49,6 +51,10 @@ export default function Submit() {
   const [related, setRelated] = useState([]);
   const [suggestions, setSuggestions] = useState(null);
   const [documentAnalysis, setDocumentAnalysis] = useState({ status: "idle", message: "" });
+  const [documentChecks, setDocumentChecks] = useState({});
+  const [fileErrors, setFileErrors] = useState({});
+  const [typeConfirmations, setTypeConfirmations] = useState({});
+  const analysisIds = useRef({});
   const [submittedPaper, setSubmittedPaper] = useState(null);
   const [academicYears, setAcademicYears] = useState([]);
 
@@ -131,35 +137,67 @@ export default function Submit() {
     setSdgTags((current) => [...new Set([...current, ...suggestions.sdgTags])]);
   }
 
-  async function handleManuscriptChange(file) {
-    setFiles((current) => ({ ...current, manuscript: file }));
-    setDocumentAnalysis({ status: "analyzing", message: "Reading the manuscript and generating metadata..." });
+  function nextAnalysisId(slot) {
+    analysisIds.current[slot] = (analysisIds.current[slot] || 0) + 1;
+    return analysisIds.current[slot];
+  }
+
+  async function analyzeUploadedDocument(slot, file, analysisId) {
     if (!file) {
-      setManuscriptText("");
-      setDocumentAnalysis({ status: "idle", message: "" });
+      setDocumentChecks((current) => { const next = { ...current }; delete next[slot]; return next; });
+      if (slot === "manuscript") {
+        setManuscriptText("");
+        setDocumentAnalysis({ status: "idle", message: "" });
+      }
       return;
     }
 
+    const expectedType = getExpectedDocumentType(slot);
+    setTypeConfirmations((current) => ({ ...current, [slot]: false }));
+    if (slot === "sourceCode") {
+      setDocumentChecks((current) => ({ ...current, [slot]: { status: "valid", expectedType } }));
+      return;
+    }
+    setDocumentChecks((current) => ({ ...current, [slot]: { status: "analyzing", expectedType } }));
+    if (slot === "manuscript") setDocumentAnalysis({ status: "analyzing", message: "Reading the manuscript and generating metadata..." });
+
     try {
       const analysis = await analyzeResearchDocumentWithAI(file);
+      if (analysisIds.current[slot] !== analysisId) return;
+      const classification = classifyResearchDocument(analysis.extractedText || "");
+      setDocumentChecks((current) => ({ ...current, [slot]: { ...classification, status: "done", expectedType } }));
+      if (slot !== "manuscript") return;
+
       setManuscriptText(analysis.extractedText || "");
       setForm((current) => ({
         ...current,
         title: sanitizeResearchTitle(analysis.title) || current.title,
         abstract: analysis.abstract || current.abstract,
         keywords: analysis.keywords || current.keywords,
-        authors: Array.isArray(analysis.authors)
-          ? analysis.authors.join(", ")
-          : analysis.authors || current.authors,
+        authors: Array.isArray(analysis.authors) ? analysis.authors.join(", ") : analysis.authors || current.authors,
         adviser: analysis.adviser || current.adviser,
       }));
       setSdgTags((current) => [...new Set([...current, ...analysis.sdgTags])]);
       setSuggestions(analysis);
       setDocumentAnalysis({ status: "done", message: `AI-assisted metadata generated: ${analysis.category}.` });
     } catch (error) {
-      setManuscriptText("");
-      setDocumentAnalysis({ status: "error", message: `Could not analyze this PDF automatically. You can enter the metadata manually. ${error.message}` });
+      if (analysisIds.current[slot] !== analysisId) return;
+      setDocumentChecks((current) => ({ ...current, [slot]: { type: "Unknown / Cannot Determine", confidence: 0.45, status: "done", expectedType } }));
+      if (slot === "manuscript") {
+        setManuscriptText("");
+        setDocumentAnalysis({ status: "error", message: `Could not analyze this document automatically. You can enter the metadata manually. ${error.message}` });
+      }
     }
+  }
+
+  function handleFileChange(slot, file) {
+    setFiles((current) => ({ ...current, [slot]: file }));
+    setFileErrors((current) => ({ ...current, [slot]: "" }));
+    analyzeUploadedDocument(slot, file, nextAnalysisId(slot));
+  }
+
+  function handleFileError(slot, message) {
+    setFileErrors((current) => ({ ...current, [slot]: message }));
   }
 
   function getSuggestedKeywords() {
@@ -171,6 +209,33 @@ export default function Submit() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    const uploadSlots = { manuscript: files.manuscript, sourceCode: files.sourceCode, ieee: files.ieee, acm: files.acm, apa: files.apa };
+    for (const [slot, file] of Object.entries(uploadSlots)) {
+      const fileError = validateResearchUploadFile(file, slot);
+      if (fileError) {
+        setStatus("error");
+        setErrorMsg(fileError);
+        return;
+      }
+      const check = documentChecks[slot];
+      if (file && slot !== "sourceCode" && check?.status === "analyzing") {
+        setStatus("error");
+        setErrorMsg("Please wait for document analysis to finish before submitting.");
+        return;
+      }
+      if (file && check?.type && check.type !== check.expectedType) {
+        if (check.confidence >= DOCUMENT_CONFIDENCE.high) {
+          setStatus("error");
+          setErrorMsg(`This file appears to be a ${check.type} (${Math.round(check.confidence * 100)}% confidence). The ${slot === "manuscript" ? "Manuscript" : slot.toUpperCase()} field requires ${check.expectedType}.`);
+          return;
+        }
+        if (check.confidence >= DOCUMENT_CONFIDENCE.medium && !typeConfirmations[slot]) {
+          setStatus("error");
+          setErrorMsg(`Please confirm that the ${slot} document type is correct before submitting.`);
+          return;
+        }
+      }
+    }
     setStatus("submitting");
     setErrorMsg("");
     try {
@@ -194,6 +259,7 @@ export default function Submit() {
         category: suggestions?.category || "Computer Studies",
         manuscriptFile: files.manuscript,
         manuscriptText,
+        confirmDocumentTypeMismatch: Boolean(typeConfirmations.manuscript),
         sourceCodeFile: files.sourceCode,
         ieeeFile: files.ieee,
         acmFile: files.acm,
@@ -475,7 +541,7 @@ export default function Submit() {
               </div>
               <div>
                 <div className="form-section-title">Files &amp; attachments</div>
-                <div className="form-section-hint">Manuscript is required; the rest are optional</div>
+                <div className="form-section-hint">Manuscript is required; other files are optional · up to {MAX_RESEARCH_UPLOAD_SIZE_LABEL} per file</div>
               </div>
             </div>
 
@@ -483,47 +549,71 @@ export default function Submit() {
               <Field label="Manuscript (PDF or DOCX)">
                 <Dropzone
                   accept=".pdf,.docx"
+                  slot="manuscript"
                   file={files.manuscript}
                   required={!files.ieee}
-                  onChange={handleManuscriptChange}
+                  error={fileErrors.manuscript}
+                  check={documentChecks.manuscript}
+                  confirmed={typeConfirmations.manuscript}
+                  analysisMessage={documentAnalysis.message}
+                  analysisStatus={documentAnalysis.status}
+                  onConfirm={(value) => setTypeConfirmations((current) => ({ ...current, manuscript: value }))}
+                  onError={(message) => handleFileError("manuscript", message)}
+                  onChange={(file) => handleFileChange("manuscript", file)}
                   hint="Full research paper, PDF or DOCX. Leave this empty to attach an IEEE version to an existing title."
                 />
               </Field>
-              {documentAnalysis.status !== "idle" && (
-                <div className={`metadata-analysis ${documentAnalysis.status}`} role="status">
-                  <strong>AI-assisted document analysis</strong>
-                  <span>{documentAnalysis.message}</span>
-                </div>
-              )}
               <Field label="Source code (zip)">
                 <Dropzone
                   accept=".zip"
+                  slot="sourceCode"
                   file={files.sourceCode}
-                  onChange={(file) => setFiles((f) => ({ ...f, sourceCode: file }))}
+                  error={fileErrors.sourceCode}
+                  check={documentChecks.sourceCode}
+                  onError={(message) => handleFileError("sourceCode", message)}
+                  onChange={(file) => handleFileChange("sourceCode", file)}
                   hint="Optional — zipped project files"
                 />
               </Field>
               <Field label="IEEE short paper (PDF)">
                 <Dropzone
                   accept=".pdf"
+                  slot="ieee"
                   file={files.ieee}
-                  onChange={(file) => setFiles((f) => ({ ...f, ieee: file }))}
+                  error={fileErrors.ieee}
+                  check={documentChecks.ieee}
+                  confirmed={typeConfirmations.ieee}
+                  onConfirm={(value) => setTypeConfirmations((current) => ({ ...current, ieee: value }))}
+                  onError={(message) => handleFileError("ieee", message)}
+                  onChange={(file) => handleFileChange("ieee", file)}
                   hint="Optional — upload with the same title to attach it to an existing research record"
                 />
               </Field>
               <Field label="ACM style paper (PDF)">
                 <Dropzone
                   accept=".pdf"
+                  slot="acm"
                   file={files.acm}
-                  onChange={(file) => setFiles((f) => ({ ...f, acm: file }))}
+                  error={fileErrors.acm}
+                  check={documentChecks.acm}
+                  confirmed={typeConfirmations.acm}
+                  onConfirm={(value) => setTypeConfirmations((current) => ({ ...current, acm: value }))}
+                  onError={(message) => handleFileError("acm", message)}
+                  onChange={(file) => handleFileChange("acm", file)}
                   hint="Optional — ACM conference-format paper"
                 />
               </Field>
               <Field label="APA style paper (PDF)">
                 <Dropzone
                   accept=".pdf"
+                  slot="apa"
                   file={files.apa}
-                  onChange={(file) => setFiles((f) => ({ ...f, apa: file }))}
+                  error={fileErrors.apa}
+                  check={documentChecks.apa}
+                  confirmed={typeConfirmations.apa}
+                  onConfirm={(value) => setTypeConfirmations((current) => ({ ...current, apa: value }))}
+                  onError={(message) => handleFileError("apa", message)}
+                  onChange={(file) => handleFileChange("apa", file)}
                   hint="Optional — APA academic paper"
                 />
               </Field>
@@ -606,9 +696,33 @@ export default function Submit() {
   );
 }
 
-function Dropzone({ accept, file, onChange, hint, required }) {
+function Dropzone({ accept, slot, file, onChange, onError, error, check, confirmed, onConfirm, analysisMessage, analysisStatus, hint, required }) {
+  function selectFiles(list) {
+    if (list.length > 1) {
+      onChange(null);
+      onError("Only one file can be uploaded at a time. Please select one file.");
+      return;
+    }
+    const selected = list[0] || null;
+    const validationError = validateResearchUploadFile(selected, slot);
+    if (validationError) {
+      onChange(null);
+      onError(validationError);
+      return;
+    }
+    onError("");
+    onChange(selected);
+  }
+
+  const typeMismatch = check?.type && check.type !== check.expectedType;
+  const confidenceLabel = check?.confidence == null ? "" : getDocumentConfidenceLabel(check.confidence);
   return (
-    <div className={`dropzone${file ? " has-file" : ""}`}>
+    <>
+    <div
+      className={`dropzone${file ? " has-file" : ""}`}
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={(event) => { event.preventDefault(); selectFiles(Array.from(event.dataTransfer.files || [])); }}
+    >
       <div className="dropzone-icon">
         {file ? <CheckCircle2 size={17} /> : <UploadCloud size={17} />}
       </div>
@@ -638,8 +752,34 @@ function Dropzone({ accept, file, onChange, hint, required }) {
         type="file"
         accept={accept}
         required={required && !file}
-        onChange={(e) => onChange(e.target.files[0] || null)}
+        onChange={(event) => { selectFiles(Array.from(event.currentTarget.files || [])); event.currentTarget.value = ""; }}
       />
     </div>
+    {error && <div role="alert" className="auth-error" style={{ marginTop: 6 }}>{error}</div>}
+    {check && slot !== "sourceCode" && (
+      <div className={`metadata-analysis ${check.status === "analyzing" ? "analyzing" : typeMismatch ? "error" : "done"}`} role="status" style={{ marginTop: 8 }}>
+        <strong>Document validation</strong>
+        {check.status === "analyzing" ? <span>Analyzing document content…</span> : <>
+          <span>{check.confidence >= DOCUMENT_CONFIDENCE.medium ? "Detected type" : "Possible document type"}: {check.type} ({Math.round(check.confidence * 100)}% — {confidenceLabel})</span>
+          <span>Expected: {check.expectedType}</span>
+          {typeMismatch && check.confidence >= DOCUMENT_CONFIDENCE.high && <span>This document appears incompatible with this upload field. Please select the expected document.</span>}
+          {typeMismatch && check.confidence >= DOCUMENT_CONFIDENCE.medium && check.confidence < DOCUMENT_CONFIDENCE.high && (
+            <label style={{ display: "flex", gap: 7, alignItems: "flex-start" }}>
+              <input type="checkbox" checked={Boolean(confirmed)} onChange={(event) => onConfirm?.(event.target.checked)} />
+              I verified this document and want to continue.
+            </label>
+          )}
+          {check.confidence < DOCUMENT_CONFIDENCE.medium && <span>Please verify that you selected the correct research document.</span>}
+        </>}
+      </div>
+    )}
+    {slot === "manuscript" && analysisStatus !== "idle" && (
+      <div className={`metadata-analysis ${analysisStatus === "error" ? "error" : "done"}`} role="status" style={{ marginTop: 8 }}>
+        <strong>AI-assisted metadata analysis</strong>
+        <span>{analysisMessage}</span>
+      </div>
+    )}
+    {check && slot === "sourceCode" && <div className="dropzone-sub" role="status">Expected: ZIP source-code archive · maximum {MAX_RESEARCH_UPLOAD_SIZE_LABEL}</div>}
+    </>
   );
 }

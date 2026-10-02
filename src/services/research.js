@@ -5,6 +5,8 @@ import { checkResearchDuplicate } from "./search";
 import { createUniqueStorageToken } from "../lib/storagePath.js";
 import { openResearchPreviewInNewTab } from "./paperPreview";
 import { normalizeResearchFileUrls } from "../lib/researchFilePreview";
+import { validateResearchUploadFiles } from "../lib/researchUploadValidation";
+import { classifyResearchDocument, DOCUMENT_CONFIDENCE } from "../lib/researchDocumentType";
 
 function buildStoragePath(userId, file) {
   const originalName = file?.name || "upload";
@@ -110,8 +112,26 @@ export async function submitResearch({
   ieeeFile,
   acmFile,
   apaFile,
+  confirmDocumentTypeMismatch = false,
   userId,
 }) {
+  validateResearchUploadFiles({
+    manuscript: manuscriptFile,
+    sourceCode: sourceCodeFile,
+    ieee: ieeeFile,
+    acm: acmFile,
+    apa: apaFile,
+  });
+  if (manuscriptFile && manuscriptText) {
+    const detected = classifyResearchDocument(manuscriptText);
+    if (detected.type !== "Full Research Manuscript" && detected.confidence >= DOCUMENT_CONFIDENCE.high) {
+      throw new Error(`This file appears to be a ${detected.type} (${Math.round(detected.confidence * 100)}% confidence). The Manuscript field requires a full research manuscript.`);
+    }
+    if (detected.type !== "Full Research Manuscript" && detected.confidence >= DOCUMENT_CONFIDENCE.medium && !confirmDocumentTypeMismatch) {
+      throw new Error("The manuscript document type needs your confirmation before submission.");
+    }
+  }
+
   const normalizedTitle = title.trim().replace(/\s+/g, " ");
   if (!normalizedTitle) throw new Error("Research title is required.");
   const manuscriptSha256 = await assertManuscriptFileIsUnique(manuscriptFile);
@@ -265,6 +285,13 @@ export async function updateResearchSubmission({
 
   const normalizedTitle = String(title || "").trim().replace(/\s+/g, " ");
   if (!normalizedTitle) throw new Error("Research title is required.");
+  validateResearchUploadFiles(files);
+  if (files.manuscript && manuscriptText) {
+    const detected = classifyResearchDocument(manuscriptText);
+    if (detected.type !== "Full Research Manuscript" && detected.confidence >= DOCUMENT_CONFIDENCE.high) {
+      throw new Error(`This file appears to be a ${detected.type} (${Math.round(detected.confidence * 100)}% confidence). The Manuscript field requires a full research manuscript.`);
+    }
+  }
   const manuscriptSha256 = files.manuscript
     ? await assertManuscriptFileIsUnique(files.manuscript, paper.id)
     : paper.manuscript_sha256 || await getStoredManuscriptSha256(paper.file_url);
