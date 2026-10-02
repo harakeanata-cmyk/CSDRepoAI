@@ -25,6 +25,7 @@ import { getAcademicYears } from "../../services/academicYears";
 import { useUnloadWarning } from "../../lib/useUnloadWarning";
 import { validateResearchUploadFile, MAX_RESEARCH_UPLOAD_SIZE_LABEL } from "../../lib/researchUploadValidation";
 import { classifyResearchDocument, getDocumentConfidenceLabel, getExpectedDocumentType, DOCUMENT_CONFIDENCE } from "../../lib/researchDocumentType";
+import { analyzeSubmissionFileOnce, clearSubmissionDraft, loadSubmissionDraft, saveSubmissionDraft } from "../../lib/submissionDraftStore";
 
 function buildDefaultForm(profile) {
   return {
@@ -42,30 +43,84 @@ function buildDefaultForm(profile) {
 export default function Submit() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState(() => buildDefaultForm(profile));
-  const [sdgTags, setSdgTags] = useState([]);
-  const [files, setFiles] = useState(() => ({ manuscript: null, sourceCode: null, ieee: null, acm: null, apa: null }));
-  const [manuscriptText, setManuscriptText] = useState("");
-  const [status, setStatus] = useState("idle"); // idle | submitting | done | error
-  const [errorMsg, setErrorMsg] = useState("");
+  const draftOwnerId = useRef(user?.id || null);
+  const initialDraftRef = useRef(undefined);
+  if (initialDraftRef.current === undefined) initialDraftRef.current = user?.id ? loadSubmissionDraft(user.id) : null;
+  const initialDraft = initialDraftRef.current;
+  const [draftStateOwner, setDraftStateOwner] = useState(user?.id || null);
+  const [form, setForm] = useState(() => ({ ...buildDefaultForm(profile), ...(initialDraft?.form || {}) }));
+  const [sdgTags, setSdgTags] = useState(() => initialDraft?.sdgTags || []);
+  const [files, setFiles] = useState(() => initialDraft?.files || ({ manuscript: null, sourceCode: null, ieee: null, acm: null, apa: null }));
+  const [detachedFiles, setDetachedFiles] = useState(() => initialDraft?.detachedFiles || {});
+  const [manuscriptText, setManuscriptText] = useState(() => initialDraft?.manuscriptText || "");
+  const [status, setStatus] = useState(() => initialDraft?.status || "idle"); // idle | submitting | done | error
+  const [errorMsg, setErrorMsg] = useState(() => initialDraft?.errorMsg || "");
   const [related, setRelated] = useState([]);
-  const [suggestions, setSuggestions] = useState(null);
-  const [documentAnalysis, setDocumentAnalysis] = useState({ status: "idle", message: "" });
-  const [documentChecks, setDocumentChecks] = useState({});
-  const [fileErrors, setFileErrors] = useState({});
-  const [typeConfirmations, setTypeConfirmations] = useState({});
+  const [suggestions, setSuggestions] = useState(() => initialDraft?.suggestions || null);
+  const [documentAnalysis, setDocumentAnalysis] = useState(() => initialDraft?.documentAnalysis || { status: "idle", message: "" });
+  const [documentChecks, setDocumentChecks] = useState(() => initialDraft?.documentChecks || {});
+  const [fileErrors, setFileErrors] = useState(() => initialDraft?.fileErrors || {});
+  const [typeConfirmations, setTypeConfirmations] = useState(() => initialDraft?.typeConfirmations || {});
   const analysisIds = useRef({});
   const [submittedPaper, setSubmittedPaper] = useState(null);
   const [academicYears, setAcademicYears] = useState([]);
 
+  const defaultForm = buildDefaultForm(profile);
+  const hasFormChanges = Object.entries(form).some(([field, value]) => (
+    Boolean(value?.trim()) && value !== defaultForm[field]
+  ));
   const hasUnsavedSubmission = status !== "done" && (
-    [form.title, form.abstract, form.authors, form.adviser, form.academicYear, form.keywords]
-      .some((value) => Boolean(value?.trim()))
+    hasFormChanges
     || Object.values(files).some(Boolean)
+    || Object.values(detachedFiles).some(Boolean)
+    || Object.values(fileErrors).some(Boolean)
     || sdgTags.length > 0
     || Boolean(manuscriptText.trim())
   );
   useUnloadWarning(hasUnsavedSubmission);
+
+  useEffect(() => {
+    const nextUserId = user?.id || null;
+    if (draftOwnerId.current === nextUserId) return;
+    Object.keys(analysisIds.current).forEach(nextAnalysisId);
+    if (draftOwnerId.current) clearSubmissionDraft(draftOwnerId.current);
+    draftOwnerId.current = nextUserId;
+    const draft = nextUserId ? loadSubmissionDraft(nextUserId) : null;
+    setForm({ ...buildDefaultForm(profile), ...(draft?.form || {}) });
+    setSdgTags(draft?.sdgTags || []);
+    setFiles(draft?.files || { manuscript: null, sourceCode: null, ieee: null, acm: null, apa: null });
+    setDetachedFiles(draft?.detachedFiles || {});
+    setManuscriptText(draft?.manuscriptText || "");
+    setStatus(draft?.status || "idle");
+    setErrorMsg(draft?.errorMsg || "");
+    setSuggestions(draft?.suggestions || null);
+    setDocumentAnalysis(draft?.documentAnalysis || { status: "idle", message: "" });
+    setDocumentChecks(draft?.documentChecks || {});
+    setFileErrors(draft?.fileErrors || {});
+    setTypeConfirmations(draft?.typeConfirmations || {});
+    setDraftStateOwner(nextUserId);
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || draftStateOwner !== user.id || status === "done" || !hasUnsavedSubmission) return;
+    saveSubmissionDraft(user.id, {
+      form,
+      sdgTags,
+      files,
+      detachedFiles,
+      manuscriptText,
+      status,
+      errorMsg,
+      suggestions,
+      documentAnalysis,
+      documentChecks,
+      fileErrors,
+      typeConfirmations,
+    });
+  }, [
+    user?.id, draftStateOwner, hasUnsavedSubmission, form, sdgTags, files, detachedFiles, manuscriptText,
+    status, errorMsg, suggestions, documentAnalysis, documentChecks, fileErrors, typeConfirmations,
+  ]);
 
   useEffect(() => {
     getAcademicYears({ activeOnly: true })
@@ -162,7 +217,7 @@ export default function Submit() {
     if (slot === "manuscript") setDocumentAnalysis({ status: "analyzing", message: "Reading the manuscript and generating metadata..." });
 
     try {
-      const analysis = await analyzeResearchDocumentWithAI(file);
+      const analysis = await analyzeSubmissionFileOnce(file, analyzeResearchDocumentWithAI);
       if (analysisIds.current[slot] !== analysisId) return;
       const classification = classifyResearchDocument(analysis.extractedText || "");
       setDocumentChecks((current) => ({ ...current, [slot]: { ...classification, status: "done", expectedType } }));
@@ -190,14 +245,45 @@ export default function Submit() {
     }
   }
 
+  useEffect(() => {
+    Object.entries(files).forEach(([slot, file]) => {
+      const analysisWasInterrupted = documentChecks[slot]?.status === "analyzing"
+        || (slot === "manuscript" && documentAnalysis.status === "analyzing");
+      if (file && slot !== "sourceCode" && analysisWasInterrupted) {
+        analyzeUploadedDocument(slot, file, nextAnalysisId(slot));
+      }
+    });
+  }, []);
+
   function handleFileChange(slot, file) {
     setFiles((current) => ({ ...current, [slot]: file }));
+    setDetachedFiles((current) => { const next = { ...current }; delete next[slot]; return next; });
     setFileErrors((current) => ({ ...current, [slot]: "" }));
+    if (!file) setTypeConfirmations((current) => ({ ...current, [slot]: false }));
     analyzeUploadedDocument(slot, file, nextAnalysisId(slot));
   }
 
   function handleFileError(slot, message) {
     setFileErrors((current) => ({ ...current, [slot]: message }));
+  }
+
+  function handleClearForm() {
+    if (user?.id) clearSubmissionDraft(user.id);
+    Object.keys(files).forEach(nextAnalysisId);
+    setForm(buildDefaultForm(profile));
+    setSdgTags([]);
+    setFiles({ manuscript: null, sourceCode: null, ieee: null, acm: null, apa: null });
+    setDetachedFiles({});
+    setManuscriptText("");
+    setStatus("idle");
+    setErrorMsg("");
+    setRelated([]);
+    setSuggestions(null);
+    setDocumentAnalysis({ status: "idle", message: "" });
+    setDocumentChecks({});
+    setFileErrors({});
+    setTypeConfirmations({});
+    setSubmittedPaper(null);
   }
 
   function getSuggestedKeywords() {
@@ -266,6 +352,7 @@ export default function Submit() {
         apaFile: files.apa,
         userId: user.id,
       });
+      clearSubmissionDraft(user.id);
       setSubmittedPaper(result);
       setStatus("done");
     } catch (err) {
@@ -551,6 +638,8 @@ export default function Submit() {
                   accept=".pdf,.docx"
                   slot="manuscript"
                   file={files.manuscript}
+                  previousFile={detachedFiles.manuscript}
+                  onRemovePrevious={() => handleFileChange("manuscript", null)}
                   required={!files.ieee}
                   error={fileErrors.manuscript}
                   check={documentChecks.manuscript}
@@ -568,6 +657,8 @@ export default function Submit() {
                   accept=".zip"
                   slot="sourceCode"
                   file={files.sourceCode}
+                  previousFile={detachedFiles.sourceCode}
+                  onRemovePrevious={() => handleFileChange("sourceCode", null)}
                   error={fileErrors.sourceCode}
                   check={documentChecks.sourceCode}
                   onError={(message) => handleFileError("sourceCode", message)}
@@ -580,6 +671,8 @@ export default function Submit() {
                   accept=".pdf"
                   slot="ieee"
                   file={files.ieee}
+                  previousFile={detachedFiles.ieee}
+                  onRemovePrevious={() => handleFileChange("ieee", null)}
                   error={fileErrors.ieee}
                   check={documentChecks.ieee}
                   confirmed={typeConfirmations.ieee}
@@ -594,6 +687,8 @@ export default function Submit() {
                   accept=".pdf"
                   slot="acm"
                   file={files.acm}
+                  previousFile={detachedFiles.acm}
+                  onRemovePrevious={() => handleFileChange("acm", null)}
                   error={fileErrors.acm}
                   check={documentChecks.acm}
                   confirmed={typeConfirmations.acm}
@@ -608,6 +703,8 @@ export default function Submit() {
                   accept=".pdf"
                   slot="apa"
                   file={files.apa}
+                  previousFile={detachedFiles.apa}
+                  onRemovePrevious={() => handleFileChange("apa", null)}
                   error={fileErrors.apa}
                   check={documentChecks.apa}
                   confirmed={typeConfirmations.apa}
@@ -628,9 +725,12 @@ export default function Submit() {
                 "Your adviser and the review committee will be notified once submitted."
               )}
             </div>
-            <button type="submit" disabled={status === "submitting" || documentAnalysis.status === "analyzing"} className="btn btn-primary">
-              {status === "submitting" ? "Submitting..." : documentAnalysis.status === "analyzing" ? "Reading manuscript..." : "Submit Research"}
-            </button>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button type="button" className="btn btn-outline" onClick={handleClearForm} disabled={!hasUnsavedSubmission && status === "idle"}>Clear Form</button>
+              <button type="submit" disabled={status === "submitting" || documentAnalysis.status === "analyzing"} className="btn btn-primary">
+                {status === "submitting" ? "Submitting..." : documentAnalysis.status === "analyzing" ? "Reading manuscript..." : "Submit Research"}
+              </button>
+            </div>
           </div>
         </form>
 
@@ -696,7 +796,7 @@ export default function Submit() {
   );
 }
 
-function Dropzone({ accept, slot, file, onChange, onError, error, check, confirmed, onConfirm, analysisMessage, analysisStatus, hint, required }) {
+function Dropzone({ accept, slot, file, previousFile, onRemovePrevious, onChange, onError, error, check, confirmed, onConfirm, analysisMessage, analysisStatus, hint, required }) {
   function selectFiles(list) {
     if (list.length > 1) {
       onChange(null);
@@ -728,21 +828,22 @@ function Dropzone({ accept, slot, file, onChange, onError, error, check, confirm
       </div>
       <div style={{ minWidth: 0 }}>
         <div className="dropzone-text">
-          {file ? file.name : `Click to upload or drag a file here`}
+          {file ? file.name : previousFile ? `Previously selected: ${previousFile.name}` : `Click to upload or drag a file here`}
         </div>
         <div className="dropzone-sub">
-          {file ? "Click to replace this file" : hint}
+          {file ? "Click to replace this file" : previousFile ? "Please reselect this file to continue" : hint}
         </div>
       </div>
-      {file && (
+      {(file || previousFile) && (
         <button
           type="button"
           className="dropzone-remove"
-          aria-label={`Remove ${file.name}`}
+          aria-label={`Remove ${file?.name || previousFile.name}`}
           title="Remove file"
           onClick={(event) => {
             event.stopPropagation();
-            onChange(null);
+            if (file) onChange(null);
+            else onRemovePrevious?.();
           }}
         >
           <X size={15} />
@@ -756,12 +857,19 @@ function Dropzone({ accept, slot, file, onChange, onError, error, check, confirm
       />
     </div>
     {error && <div role="alert" className="auth-error" style={{ marginTop: 6 }}>{error}</div>}
+    {previousFile && !file && (
+      <div className="metadata-analysis error" role="status" style={{ marginTop: 8 }}>
+        <strong>Reselect this file to continue</strong>
+        <span>{previousFile.name} was selected before the page reloaded. The file itself was not stored in browser storage.</span>
+      </div>
+    )}
     {check && slot !== "sourceCode" && (
       <div className={`metadata-analysis ${check.status === "analyzing" ? "analyzing" : typeMismatch ? "error" : "done"}`} role="status" style={{ marginTop: 8 }}>
-        <strong>Document validation</strong>
+        <strong>{previousFile && !file ? "Saved document validation" : "Document validation"}</strong>
         {check.status === "analyzing" ? <span>Analyzing document content…</span> : <>
           <span>{check.confidence >= DOCUMENT_CONFIDENCE.medium ? "Detected type" : "Possible document type"}: {check.type} ({Math.round(check.confidence * 100)}% — {confidenceLabel})</span>
           <span>Expected: {check.expectedType}</span>
+          {previousFile && !file && <span>Saved result only; it will be checked again after you reselect the document.</span>}
           {typeMismatch && check.confidence >= DOCUMENT_CONFIDENCE.high && <span>This document appears incompatible with this upload field. Please select the expected document.</span>}
           {typeMismatch && check.confidence >= DOCUMENT_CONFIDENCE.medium && check.confidence < DOCUMENT_CONFIDENCE.high && (
             <label style={{ display: "flex", gap: 7, alignItems: "flex-start" }}>
