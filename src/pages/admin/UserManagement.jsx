@@ -5,6 +5,7 @@ import { PageHeader, EmptyState, Avatar, StatGrid, StatCard, Field, Button } fro
 import { createUserAccount, getUsers, updateUserRole, setUserActive } from "../../services/users";
 import { validatePassword } from "../../lib/authValidation";
 import { supabaseServiceConfigured } from "../../lib/supabaseClient";
+import { validatePersonNameFields } from "../../lib/nameValidation";
 
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
@@ -97,8 +98,14 @@ export default function UserManagement() {
     setCreateSuccess("");
     setCreating(true);
 
-    if (!newUser.email || !newUser.first_name || !newUser.last_name) {
-      setCreateError("Please fill in the required fields.");
+    const nameCheck = validatePersonNameFields(newUser);
+    if (!nameCheck.ok) {
+      setCreateError(Object.values(nameCheck.errors)[0]);
+      setCreating(false);
+      return;
+    }
+    if (!newUser.email.trim()) {
+      setCreateError("Please enter an email address.");
       setCreating(false);
       return;
     }
@@ -112,7 +119,7 @@ export default function UserManagement() {
       }
     }
     try {
-      await createUserAccount({ ...newUser, password: newUser.password || undefined });
+      await createUserAccount({ ...newUser, ...nameCheck.normalized, email: newUser.email.trim(), password: newUser.password || undefined });
       setCreateSuccess("User created successfully. If confirmation is required, they should receive an email shortly.");
       setNewUser({
         email: "",
@@ -330,6 +337,7 @@ export default function UserManagement() {
                 className="input"
                 value={newUser.middle_name}
                 onChange={(e) => setNewUser((prev) => ({ ...prev, middle_name: e.target.value }))}
+                required
               />
             </Field>
             <Field label="Last name">

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { normalizeEmail, validatePassword } from "../lib/authValidation";
+import { validatePersonNameFields } from "../lib/nameValidation";
 import { parseRecoveryCode, parseRecoveryParams } from "../lib/authRecovery";
 import { getPasswordResetRedirectTo } from "../lib/authReset";
 import { buildProfileState } from "../lib/authProfile";
@@ -186,7 +187,13 @@ export function AuthProvider({ children }) {
     const resolvedMiddleName = middleName ?? "";
     const resolvedLastName = lastName ?? (fullName ? fullName.trim().split(/\s+/).slice(1).join(" ") || "" : "");
     const resolvedSuffix = suffix ?? "";
-    const resolvedFullName = [resolvedFirstName, resolvedMiddleName, resolvedLastName, resolvedSuffix].filter(Boolean).join(" ").trim();
+    const nameCheck = validatePersonNameFields({ first_name: resolvedFirstName, middle_name: resolvedMiddleName, last_name: resolvedLastName, suffix: resolvedSuffix });
+    if (!nameCheck.ok) {
+      const message = Object.values(nameCheck.errors)[0];
+      return { error: { message }, friendlyError: message, localFallback: false };
+    }
+    const { first_name: cleanFirstName, middle_name: cleanMiddleName, last_name: cleanLastName, suffix: cleanSuffix } = nameCheck.normalized;
+    const resolvedFullName = [cleanFirstName, cleanMiddleName, cleanLastName, cleanSuffix].filter(Boolean).join(" ");
 
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -196,10 +203,10 @@ export function AuthProvider({ children }) {
           emailRedirectTo: window.location.origin,
           data: {
             full_name: resolvedFullName,
-            first_name: resolvedFirstName,
-            middle_name: resolvedMiddleName,
-            last_name: resolvedLastName,
-            suffix: resolvedSuffix,
+            first_name: cleanFirstName,
+            middle_name: cleanMiddleName,
+            last_name: cleanLastName,
+            suffix: cleanSuffix,
             role: normalizedRole,
           },
         },
@@ -217,10 +224,10 @@ export function AuthProvider({ children }) {
             id: data.user.id,
             email,
             full_name: resolvedFullName,
-            first_name: resolvedFirstName,
-            middle_name: resolvedMiddleName,
-            last_name: resolvedLastName,
-            suffix: resolvedSuffix,
+            first_name: cleanFirstName,
+            middle_name: cleanMiddleName,
+            last_name: cleanLastName,
+            suffix: cleanSuffix,
             role: normalizedRole,
             student_number: normalizedRole === "student" ? studentNumber : null,
             faculty_number: normalizedRole === "faculty" ? studentNumber : null,

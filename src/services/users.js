@@ -1,4 +1,5 @@
 import { supabase, supabaseService, supabaseServiceConfigured } from "../lib/supabaseClient";
+import { assertValidPersonNameFields } from "../lib/nameValidation";
 
 export function shouldFallbackDeleteError(error) {
   if (!error?.message) return false;
@@ -29,6 +30,11 @@ export async function getUsers({ role } = {}) {
 }
 
 export async function createUserAccount({ email, password, full_name, first_name, middle_name, last_name, suffix, role, student_number, faculty_number, program }) {
+  const names = assertValidPersonNameFields({ first_name, middle_name, last_name, suffix });
+  first_name = names.first_name;
+  middle_name = names.middle_name;
+  last_name = names.last_name;
+  suffix = names.suffix;
   const resolvedFullName = [first_name, middle_name, last_name, suffix].filter(Boolean).join(" ").trim() || full_name || "";
   const metadata = {
     full_name: resolvedFullName,
@@ -112,6 +118,7 @@ export async function deleteUserProfile(userId) {
 
 /** Profile Management Module: update your own profile */
 export async function updateProfile(userId, updates) {
-  const { error } = await supabase.from("profiles").update(updates).eq("id", userId);
+  const names = assertValidPersonNameFields(updates);
+  const { error } = await supabase.from("profiles").update({ ...updates, ...names }).eq("id", userId);
   if (error) throw error;
 }
