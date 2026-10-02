@@ -5,7 +5,8 @@ import { validatePassword, normalizeEmail, hasStoredEmail } from './authValidati
 test('rejects weak passwords', () => {
   assert.equal(validatePassword('123').ok, false);
   assert.equal(validatePassword('password').ok, false);
-  assert.equal(validatePassword('StrongPass1').ok, true);
+  assert.equal(validatePassword('StrongPass1').ok, false);
+  assert.equal(validatePassword('StrongPass1!').ok, true);
 });
 
 test('normalizes email addresses for duplicate checks', () => {

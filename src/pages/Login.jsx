@@ -6,7 +6,7 @@ import { validatePassword } from "../lib/authValidation";
 import { Field } from "../components/ui";
 
 export default function Login() {
-  const { signIn, handleRecoveryLink, updatePassword, resetPassword, recoverySession } = useAuth();
+  const { signIn, handleRecoveryLink, updatePassword, resetPassword, signOut, recoverySession } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({
     email: "",
@@ -17,6 +17,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [recoveryActive, setRecoveryActive] = useState(false);
+  const [resetComplete, setResetComplete] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [showResetPrompt, setShowResetPrompt] = useState(false);
@@ -132,12 +133,8 @@ export default function Login() {
       const result = await resetPassword(form.email);
       setLoading(false);
 
-      if (result.error) {
-        setError(result.friendlyError || result.error.message);
-      } else {
-        setInfo("If that email exists, a password reset link will be sent shortly.");
-      }
-
+      // Keep the same response for known and unknown addresses, including provider errors.
+      setInfo("If an account exists for that email, password reset instructions have been sent.");
       setShowResetPrompt(false);
       return;
     }
@@ -165,9 +162,12 @@ export default function Login() {
 
       setNewPassword("");
       setConfirmNewPassword("");
+      setForm((current) => ({ ...current, password: "" }));
       setRecoveryActive(false);
-      setInfo("Password reset successfully. You can continue to your dashboard.");
-      navigate("/redirect");
+      await signOut();
+      setResetComplete(true);
+      setError("");
+      setInfo("");
       return;
     }
 
@@ -227,9 +227,11 @@ export default function Login() {
             </p>
           )}
           <form onSubmit={handleSubmit} className="auth-form">
-            <h2>{recoveryActive ? "Set a new password" : showResetPrompt ? "Reset your password" : "Sign in to your account"}</h2>
+            <h2>{resetComplete ? "Password reset complete" : recoveryActive ? "Set a new password" : showResetPrompt ? "Reset your password" : "Sign in to your account"}</h2>
             <p className="auth-form-sub">
-              {recoveryActive
+              {resetComplete
+                ? "Your password has been reset successfully. You can now sign in with your new password."
+                : recoveryActive
                 ? "Use the password reset link to choose a new password for your account."
                 : showResetPrompt
                   ? "Enter your email and we will send you a password reset link."
@@ -281,18 +283,20 @@ export default function Login() {
               </>
             )}
 
-            <Field label="Email">
-              <input
-                type="email"
-                placeholder="you@ndmu.edu.ph"
-                value={form.email}
-                onChange={update("email")}
-                required
-                className="input"
-              />
-            </Field>
+            {!recoveryActive && !resetComplete && (
+              <Field label="Email">
+                <input
+                  type="email"
+                  placeholder="you@ndmu.edu.ph"
+                  value={form.email}
+                  onChange={update("email")}
+                  required
+                  className="input"
+                />
+              </Field>
+            )}
 
-            {!showResetPrompt && (
+            {!showResetPrompt && !recoveryActive && !resetComplete && (
               <Field label="Password">
                 <div className="password-field">
                   <input
@@ -318,7 +322,21 @@ export default function Login() {
             {error && <p className="auth-error">{error}</p>}
             {info && <p className="auth-info">{info}</p>}
 
-            {!recoveryActive && (
+            {resetComplete ? (
+              <button
+                type="button"
+                className="btn btn-primary btn-block"
+                onClick={() => {
+                  setResetComplete(false);
+                  setShowResetPrompt(false);
+                  setError("");
+                  setInfo("");
+                  setForm((current) => ({ ...current, password: "" }));
+                }}
+              >
+                Back to Login
+              </button>
+            ) : !recoveryActive && (
               <div className="auth-button-stack">
                 <button type="submit" disabled={loading || lockoutRemaining > 0} className="btn btn-primary btn-block">
                   {loading ? "Please wait..." : lockoutRemaining > 0 ? `Try again in ${formatLockoutTime(lockoutRemaining)}` : showResetPrompt ? "Send Reset Link" : "Log In"}

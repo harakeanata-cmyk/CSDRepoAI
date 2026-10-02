@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDownAZ, ArrowUpAZ, Download, Eye, EyeOff, Filter, Plus, RefreshCw, Search, ShieldCheck, UserCheck, Users, UserCog, UserRound } from "lucide-react";
+import { ArrowDownAZ, ArrowUpAZ, Download, Eye, EyeOff, Filter, KeyRound, Plus, RefreshCw, Search, ShieldCheck, UserCheck, Users, UserCog, UserRound } from "lucide-react";
 import Layout from "../../components/Layout";
 import { PageHeader, EmptyState, Avatar, StatGrid, StatCard, Field, Button } from "../../components/ui";
 import { createUserAccount, getUsers, updateUserRole, setUserActive } from "../../services/users";
@@ -7,8 +7,10 @@ import { validatePassword } from "../../lib/authValidation";
 import { supabaseServiceConfigured } from "../../lib/supabaseClient";
 import { validatePersonNameFields } from "../../lib/nameValidation";
 import { PROGRAM_OPTIONS } from "../../lib/programs";
+import { useAuth } from "../../context/AuthContext";
 
 export default function UserManagement() {
+  const { resetPassword } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
@@ -35,6 +37,8 @@ export default function UserManagement() {
   const [creating, setCreating] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [resettingUserId, setResettingUserId] = useState(null);
+  const [resetStatus, setResetStatus] = useState(null);
   const pageSize = 8;
 
   async function load() {
@@ -91,6 +95,24 @@ export default function UserManagement() {
   async function handleToggleActive(userId, current) {
     await setUserActive(userId, !current);
     load();
+  }
+
+  async function handleSendPasswordReset(user) {
+    if (!user.email) return;
+    const confirmed = window.confirm(`Send a password reset link to ${user.email}? You will not see or set their password.`);
+    if (!confirmed) return;
+
+    setResettingUserId(user.id);
+    setResetStatus(null);
+    try {
+      const result = await resetPassword(user.email);
+      if (result.error) throw result.error;
+      setResetStatus({ id: user.id, type: "success", message: `Reset link sent to ${user.email}.` });
+    } catch (error) {
+      setResetStatus({ id: user.id, type: "error", message: error.message || "Unable to send a reset link." });
+    } finally {
+      setResettingUserId(null);
+    }
   }
 
   async function handleCreateUser(e) {
@@ -278,9 +300,25 @@ export default function UserManagement() {
                     <span className={`badge ${u.is_active ? "badge-success" : "badge-neutral"}`}>{u.is_active ? "Active" : "Deactivated"}</span>
                   </td>
                   <td>
-                    <button onClick={() => handleToggleActive(u.id, u.is_active)} className={`btn btn-sm ${u.is_active ? "btn-danger" : "btn-success"}`}>
-                      {u.is_active ? "Deactivate" : "Activate"}
-                    </button>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      <button onClick={() => handleToggleActive(u.id, u.is_active)} className={`btn btn-sm ${u.is_active ? "btn-danger" : "btn-success"}`}>
+                        {u.is_active ? "Deactivate" : "Activate"}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline"
+                        onClick={() => handleSendPasswordReset(u)}
+                        disabled={!u.email || resettingUserId === u.id}
+                        title={u.email ? "Email a password reset link" : "No email is recorded for this account"}
+                      >
+                        <KeyRound size={13} /> {resettingUserId === u.id ? "Sending..." : "Reset Password"}
+                      </button>
+                    </div>
+                    {resetStatus?.id === u.id && (
+                      <small role={resetStatus.type === "error" ? "alert" : "status"} style={{ display: "block", marginTop: 6, color: resetStatus.type === "error" ? "var(--danger-700)" : "var(--success-700)" }}>
+                        {resetStatus.message}
+                      </small>
+                    )}
                   </td>
                 </tr>
               ))}

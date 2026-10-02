@@ -137,7 +137,7 @@ export function AuthProvider({ children }) {
   async function resetPassword(email) {
     try {
       const redirectTo = getPasswordResetRedirectTo(typeof window !== "undefined" ? window.location.origin : "");
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
         redirectTo,
       });
 
@@ -288,6 +288,7 @@ export function AuthProvider({ children }) {
   async function signOut() {
     setSession(null);
     setProfile(null);
+    setRecoverySession(false);
     try {
       const { error } = await supabase.auth.signOut();
       if (!error) return { error: null };
