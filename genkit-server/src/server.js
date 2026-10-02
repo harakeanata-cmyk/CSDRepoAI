@@ -36,6 +36,90 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.use(express.json({ limit: "1mb" }));
+
+app.get("/admin/users", async (req, res) => {
+  const accessToken = req.headers.authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
+  if (!accessToken) return res.status(401).json({ error: "Authentication is required." });
+
+  try {
+    const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
+    if (authError || !authData?.user) {
+      return res.status(401).json({ error: "Your session is invalid or expired. Please sign in again." });
+    }
+
+    const { data: callerProfile, error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .select("role")
+      .eq("id", authData.user.id)
+      .single();
+    if (profileError) throw profileError;
+    if (callerProfile.role !== "admin") return res.status(403).json({ error: "Admin access is required." });
+
+    const role = typeof req.query.role === "string" ? req.query.role : null;
+    if (role && !["student", "faculty", "admin"].includes(role)) {
+      return res.status(400).json({ error: "Invalid role filter." });
+    }
+
+    let profileQuery = supabaseAdmin.from("profiles").select("*").order("created_at", { ascending: false });
+    if (role) profileQuery = profileQuery.eq("role", role);
+    const { data: profiles, error: profilesError } = await profileQuery;
+    if (profilesError) throw profilesError;
+
+    const authUsers = [];
+    const perPage = 1000;
+    for (let page = 1; ; page += 1) {
+      const { data: usersPage, error: usersError } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
+      if (usersError) throw usersError;
+      const batch = usersPage?.users || [];
+      authUsers.push(...batch);
+      if (batch.length < perPage) break;
+    }
+
+    const emailById = new Map(authUsers.map((user) => [user.id, user.email || null]));
+    return res.json({ users: (profiles || []).map((profile) => ({ ...profile, email: emailById.get(profile.id) || null })) });
+  } catch (error) {
+    console.error("[admin/users] Failed to load directory:", error);
+    return res.status(500).json({ error: "Unable to load user accounts. Check the server Supabase configuration." });
+  }
+});
+
+app.post("/admin/users", async (req, res) => {
+  const accessToken = req.headers.authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
+  if (!accessToken) return res.status(401).json({ error: "Authentication is required." });
+
+  try {
+    const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
+    if (authError || !authData?.user) {
+      return res.status(401).json({ error: "Your session is invalid or expired. Please sign in again." });
+    }
+
+    const { data: callerProfile, error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .select("role")
+      .eq("id", authData.user.id)
+      .single();
+    if (profileError) throw profileError;
+    if (callerProfile.role !== "admin") return res.status(403).json({ error: "Admin access is required." });
+
+    const { email, password, first_name, middle_name, last_name, suffix, role, student_number, faculty_number, program } = req.body || {};
+    if (!email || !["student", "faculty", "admin"].includes(role)) {
+      return res.status(400).json({ error: "A valid email and role are required." });
+    }
+    const full_name = [first_name, middle_name, last_name, suffix].filter(Boolean).join(" ").trim();
+    const { data, error } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password: password || undefined,
+      email_confirm: true,
+      user_metadata: { full_name, first_name, middle_name, last_name, suffix, role, student_number, faculty_number, program },
+    });
+    if (error) throw error;
+    return res.status(201).json({ user: data.user });
+  } catch (error) {
+    console.error("[admin/users] Failed to create account:", error);
+    return res.status(500).json({ error: error.message || "Unable to create the account." });
+  }
+});
+
 const DUPLICATE_SIMILARITY_THRESHOLD = 0.92;
 // gemini-embedding-001 accepts at most 2,048 tokens. Keep the request bounded
 // to roughly 1,500 English tokens, leaving room for tokenization variance.
