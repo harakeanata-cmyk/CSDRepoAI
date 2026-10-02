@@ -212,6 +212,32 @@ create table if not exists academic_years (
 
 create index if not exists idx_academic_years_active on academic_years(is_active, sort_order, label);
 
+-- Academic years referenced by research papers must remain in the lookup list.
+create or replace function prevent_deleting_used_academic_year()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if exists (
+    select 1
+    from research_papers
+    where academic_year = old.label
+  ) then
+    raise exception 'Academic year "%" cannot be deleted because it is used by one or more research papers.', old.label
+      using errcode = '23503';
+  end if;
+
+  return old;
+end;
+$$;
+
+drop trigger if exists academic_years_prevent_used_delete on academic_years;
+create trigger academic_years_prevent_used_delete
+  before delete on academic_years
+  for each row execute function prevent_deleting_used_academic_year();
+
 create table if not exists system_evaluations (
   id uuid primary key default gen_random_uuid(),
   respondent_id uuid references profiles(id) on delete cascade not null unique,
