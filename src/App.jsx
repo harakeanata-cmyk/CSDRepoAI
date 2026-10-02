@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -25,13 +26,58 @@ import Settings from "./pages/Settings";
 import ResearchDocumentPreview from "./pages/ResearchDocumentPreview";
 
 function PersistentOCRScan() {
-  const { pathname } = useLocation();
-  const { role } = useAuth();
+  const location = useLocation();
+  const { role, session, loading, verifySession } = useAuth();
+  const [verifiedLocation, setVerifiedLocation] = useState(null);
+  const [checking, setChecking] = useState(true);
+  const isActive = location.pathname === "/admin/ocr";
 
-  if (role !== "admin") return null;
+  useEffect(() => {
+    if (!isActive) {
+      setVerifiedLocation(null);
+      setChecking(true);
+      return undefined;
+    }
+    if (loading || role !== "admin") return undefined;
+    let active = true;
+    const locationToken = `${location.key}:${location.pathname}`;
+    let pendingCheck = null;
+
+    async function verifyBeforeDisplay() {
+      if (pendingCheck) return pendingCheck;
+      setChecking(true);
+      setVerifiedLocation(null);
+      pendingCheck = verifySession();
+      try {
+        const valid = await pendingCheck;
+        if (active) {
+          setVerifiedLocation(valid ? locationToken : null);
+          setChecking(false);
+        }
+      } finally {
+        pendingCheck = null;
+      }
+    }
+
+    const checkWhenVisible = () => {
+      if (document.visibilityState === "visible") void verifyBeforeDisplay();
+    };
+    const checkOnPageShow = () => void verifyBeforeDisplay();
+    void verifyBeforeDisplay();
+    document.addEventListener("visibilitychange", checkWhenVisible);
+    window.addEventListener("pageshow", checkOnPageShow);
+
+    return () => {
+      active = false;
+      document.removeEventListener("visibilitychange", checkWhenVisible);
+      window.removeEventListener("pageshow", checkOnPageShow);
+    };
+  }, [isActive, loading, location.key, location.pathname, role, verifySession]);
+
+  if (role !== "admin" || !session) return null;
 
   return (
-    <div style={{ display: pathname === "/admin/ocr" ? "block" : "none" }}>
+    <div style={{ display: isActive && !checking && verifiedLocation === `${location.key}:${location.pathname}` ? "block" : "none" }}>
       <OCRScan />
     </div>
   );
@@ -42,7 +88,7 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/paper-preview" element={<ResearchDocumentPreview />} />
+          <Route path="/paper-preview" element={<ProtectedRoute allowedRoles={["admin", "faculty", "student"]}><ResearchDocumentPreview /></ProtectedRoute>} />
           <Route path="/login" element={<Login />} />
           <Route path="/redirect" element={<RoleRedirect />} />
           <Route path="/" element={<Login />} />

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { normalizeEmail, validatePassword } from "../lib/authValidation";
 import { validatePersonNameFields } from "../lib/nameValidation";
@@ -52,6 +52,34 @@ export function AuthProvider({ children }) {
       setProfile(buildProfileState(user, data));
     }
   }
+
+  const verifySession = useCallback(async () => {
+    try {
+      const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !currentSession?.user?.id || !currentSession.access_token) {
+        await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+        setSession(null);
+        setProfile(null);
+        return false;
+      }
+
+      // getSession reads the local token; getUser asks Supabase Auth to verify it.
+      const { data: { user: verifiedUser }, error: userError } = await supabase.auth.getUser(currentSession.access_token);
+      if (userError || !verifiedUser?.id || verifiedUser.id !== currentSession.user.id) {
+        await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+        setSession(null);
+        setProfile(null);
+        return false;
+      }
+
+      return true;
+    } catch {
+      await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+      setSession(null);
+      setProfile(null);
+      return false;
+    }
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -260,7 +288,17 @@ export function AuthProvider({ children }) {
   async function signOut() {
     setSession(null);
     setProfile(null);
-    await supabase.auth.signOut();
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (!error) return { error: null };
+
+      // Preserve logout locally when the remote revocation request cannot finish.
+      await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+      return { error };
+    } catch (error) {
+      await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+      return { error };
+    }
   }
 
   const value = {
@@ -269,6 +307,7 @@ export function AuthProvider({ children }) {
     profile,
     role: profile?.role ?? null,
     loading,
+    verifySession,
     recoverySession,
     signIn,
     sendLoginCode,
