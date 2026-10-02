@@ -86,6 +86,7 @@ create table if not exists research_papers (
   adviser text,
   panel_members text[] default '{}',
   academic_year text,
+  is_active boolean not null default true,
   semester text,
   program text,
   keywords text[] default '{}',
@@ -107,6 +108,35 @@ create table if not exists research_papers (
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
+
+alter table research_papers add column if not exists is_active boolean not null default true;
+
+create or replace function public.prevent_research_paper_delete()
+returns trigger language plpgsql as $$
+begin
+  raise exception 'Research papers cannot be permanently deleted. Deactivate the record instead.'
+    using errcode = '55000';
+end;
+$$;
+drop trigger if exists research_papers_prevent_delete on research_papers;
+create trigger research_papers_prevent_delete
+  before delete on research_papers
+  for each row execute function public.prevent_research_paper_delete();
+
+create or replace function public.guard_research_paper_activation()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.is_active is distinct from old.is_active
+    and not exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'admin') then
+    raise exception 'Only administrators can activate or deactivate research papers.' using errcode = '42501';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists research_papers_guard_activation on research_papers;
+create trigger research_papers_guard_activation
+  before update of is_active on research_papers
+  for each row execute function public.guard_research_paper_activation();
 
 alter table research_papers drop constraint if exists research_papers_status_check;
 alter table research_papers add constraint research_papers_status_check
@@ -184,6 +214,7 @@ as $$
     1 - (p.embedding <=> query_embedding) as similarity
   from research_papers p
   where p.embedding is not null
+    and p.is_active = true
     and p.status <> 'rejected'
     and (status_filter is null or p.status = status_filter)
     and (sdg_filter is null or sdg_filter = any(p.sdg_tags))
@@ -298,7 +329,7 @@ create policy "profiles_admin_delete_any" on profiles for delete
 drop policy if exists "papers_select" on research_papers;
 create policy "papers_select" on research_papers for select
   using (
-    status = 'approved'
+    (status = 'approved' and is_active = true)
     or submitted_by = auth.uid()
     or exists (
       select 1 from profiles p where p.id = auth.uid() and p.role in ('faculty', 'admin')
@@ -317,8 +348,7 @@ create policy "papers_update_own_or_admin" on research_papers for update
   );
 
 drop policy if exists "papers_admin_delete" on research_papers;
-create policy "papers_admin_delete" on research_papers for delete
-  using (exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin'));
+-- Research paper rows and their history/files are preserved; deletion is blocked by trigger below.
 
 -- Submission logs: readable by faculty/admin, insertable by any authenticated user
 drop policy if exists "logs_select_staff" on submission_logs;

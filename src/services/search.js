@@ -96,18 +96,23 @@ async function searchBySemantic(query, filters) {
 }
 
 async function searchByText(query, { sdgFilter, statusFilter }) {
-  let request = supabase
-    .from("research_papers")
-    .select("*")
-    .textSearch("search_vector", formatQuery(query), {
-      type: "websearch",
-      config: "english",
-    });
-
-  if (statusFilter) request = request.eq("status", statusFilter);
-  if (sdgFilter) request = request.contains("sdg_tags", [sdgFilter]);
-
-  const { data, error } = await request.limit(30);
+  const buildRequest = (filterActive) => {
+    let request = supabase
+      .from("research_papers")
+      .select("*")
+      .textSearch("search_vector", formatQuery(query), {
+        type: "websearch",
+        config: "english",
+      });
+    if (statusFilter) request = request.eq("status", statusFilter);
+    if (filterActive) request = request.eq("is_active", true);
+    if (sdgFilter) request = request.contains("sdg_tags", [sdgFilter]);
+    return request.limit(30);
+  };
+  let { data, error } = await buildRequest(true);
+  if (error && (error.code === "42703" || error.code === "PGRST204")) {
+    ({ data, error } = await buildRequest(false));
+  }
   if (error) throw error;
   return data || [];
 }

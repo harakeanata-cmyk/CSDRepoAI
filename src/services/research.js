@@ -565,20 +565,39 @@ export async function cancelResearchEditing({ paperId, userId }) {
 }
 
 /** Research Archive Module: browse approved papers */
-export async function getApprovedPapers({ limit = 50 } = {}) {
-  const { data, error } = await supabase
-    .from("research_papers")
-    .select("*")
-    .eq("status", "approved")
-    .order("created_at", { ascending: false })
-    .limit(limit);
+export async function getApprovedPapers({ limit = 50, includeDeactivated = false } = {}) {
+  const buildRequest = (filterActive) => {
+    let request = supabase
+      .from("research_papers")
+      .select("*")
+      .eq("status", "approved")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (filterActive && !includeDeactivated) request = request.eq("is_active", true);
+    return request;
+  };
+  let { data, error } = await buildRequest(true);
+  if (error && !includeDeactivated && isMissingResearchActiveColumn(error)) {
+    ({ data, error } = await buildRequest(false));
+  }
   if (error) throw error;
   return data;
 }
 
+function isMissingResearchActiveColumn(error) {
+  return error?.code === "42703" || error?.code === "PGRST204" || /is_active.*(column|schema cache)|column.*is_active/i.test(error?.message || "");
+}
+
+function researchActivationMigrationError(error) {
+  if (isMissingResearchActiveColumn(error)) {
+    return new Error("Apply supabase/migrations/20261002000300_preserve_research_papers.sql in Supabase before changing a research record's active status.");
+  }
+  return error;
+}
+
 /** Admin archive view: include the accounts that submitted and approved each paper. */
-export async function getApprovedPapersWithAccounts({ limit = 50 } = {}) {
-  const papers = await getApprovedPapers({ limit });
+export async function getApprovedPapersWithAccounts({ limit = 1000, includeDeactivated = false } = {}) {
+  const papers = await getApprovedPapers({ limit, includeDeactivated });
   if (!papers.length) return papers;
 
   const accountIds = [...new Set(papers.flatMap((paper) => [paper.submitted_by, paper.reviewed_by]).filter(Boolean))];
@@ -597,28 +616,28 @@ export async function getApprovedPapersWithAccounts({ limit = 50 } = {}) {
   }));
 }
 
-export async function deleteResearchPaper(paper) {
-  const fileUrls = [paper.file_url, paper.source_code_url, paper.ieee_paper_url, paper.acm_paper_url, paper.apa_paper_url]
-    .flatMap(getResearchFileUrls);
-  const storagePaths = fileUrls
-    .map((url) => getResearchStoragePath(url))
-    .filter(Boolean);
-
-  if (storagePaths.length > 0) {
-    const { error: storageError } = await supabase.storage.from("research-files").remove(storagePaths);
-    if (storageError) throw storageError;
-  }
-
-  const { data: deletedRows, error } = await supabase
+export async function deactivateResearchPaper(paper) {
+  const { data, error } = await supabase
     .from("research_papers")
-    .delete()
+    .update({ is_active: false, updated_at: new Date().toISOString() })
     .eq("id", paper.id)
+    .eq("is_active", true)
     .select("id");
-  if (error) throw error;
-  if (!deletedRows?.length) {
-    throw new Error("The research record could not be deleted. Refresh the archive and try again.");
+  if (error) throw researchActivationMigrationError(error);
+  if (!data?.length) {
+    throw new Error("The research record could not be deactivated. Refresh the archive and try again.");
   }
+  notifyResearchDataChanged();
+}
 
+export async function reactivateResearchPaper(paper) {
+  const { data, error } = await supabase.from("research_papers")
+    .update({ is_active: true, updated_at: new Date().toISOString() })
+    .eq("id", paper.id)
+    .eq("is_active", false)
+    .select("id");
+  if (error) throw researchActivationMigrationError(error);
+  if (!data?.length) throw new Error("The research record could not be reactivated. Refresh the archive and try again.");
   notifyResearchDataChanged();
 }
 

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { FolderOpen, Archive as ArchiveIcon, Trash2 } from "lucide-react";
+import { FolderOpen, Archive as ArchiveIcon, Power, PowerOff } from "lucide-react";
 import Layout from "../../components/Layout";
 import { PageHeader, EmptyState, StatGrid, StatCard } from "../../components/ui";
-import { deleteResearchPaper, getApprovedPapersWithAccounts, getResearchFileUrls } from "../../services/research";
+import { deactivateResearchPaper, reactivateResearchPaper, getApprovedPapersWithAccounts, getResearchFileUrls } from "../../services/research";
 import ResearchFileActions from "../../components/ResearchFileActions";
 
 export default function Archive() {
@@ -10,6 +10,7 @@ export default function Archive() {
   const [loading, setLoading] = useState(true);
   const [yearFilter, setYearFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("active");
   const [queryFilter, setQueryFilter] = useState("");
   const [deleteError, setDeleteError] = useState("");
   const [deletingId, setDeletingId] = useState(null);
@@ -21,10 +22,10 @@ export default function Archive() {
 
   function load() {
     setLoading(true);
-    getApprovedPapersWithAccounts({ limit: 200 }).then(setPapers).finally(() => setLoading(false));
+    getApprovedPapersWithAccounts({ limit: 1000, includeDeactivated: true }).then(setPapers).finally(() => setLoading(false));
   }
 
-  async function handleDelete(paper) {
+  async function handleDeactivate(paper) {
     setDeleteError("");
     setPendingDelete(paper);
   }
@@ -36,13 +37,21 @@ export default function Archive() {
     setPendingDelete(null);
     setDeletingId(paper.id);
     try {
-      await deleteResearchPaper(paper);
-      setPapers((current) => current.filter((item) => item.id !== paper.id));
+      await deactivateResearchPaper(paper);
+      setPapers((current) => current.map((item) => item.id === paper.id ? { ...item, is_active: false } : item));
     } catch (error) {
       setDeleteError(error.message);
     } finally {
       setDeletingId(null);
     }
+  }
+
+  async function handleReactivate(paper) {
+    setDeleteError("");
+    try {
+      await reactivateResearchPaper(paper);
+      setPapers((current) => current.map((item) => item.id === paper.id ? { ...item, is_active: true } : item));
+    } catch (error) { setDeleteError(error.message); }
   }
 
   const years = useMemo(() => {
@@ -62,13 +71,14 @@ export default function Archive() {
     const matchesSource =
       sourceFilter === "all" ||
       (sourceFilter === "ocr_scanned" ? p.source === "ocr_scanned" : p.source !== "ocr_scanned");
+    const matchesStatus = statusFilter === "all" || (statusFilter === "active" ? p.is_active !== false : p.is_active === false);
     const q = queryFilter.toLowerCase();
     const matchesQuery =
       !q ||
       p.title.toLowerCase().includes(q) ||
       (p.authors || []).some((a) => a.toLowerCase().includes(q)) ||
       (p.keywords || []).some((k) => k.toLowerCase().includes(q));
-    return matchesYear && matchesSource && matchesQuery;
+    return matchesYear && matchesSource && matchesStatus && matchesQuery;
   });
 
   const digitalPapers = filtered.filter((paper) => paper.source !== "ocr_scanned");
@@ -134,15 +144,15 @@ export default function Archive() {
                   </div>
                 </td>
                 <td data-label="Action">
-                  <button
-                    type="button"
-                    className="btn btn-danger btn-sm"
-                    onClick={() => handleDelete(p)}
-                    disabled={deletingId === p.id}
-                    title="Delete research record and attached files"
-                  >
-                    <Trash2 size={13} /> {deletingId === p.id ? "Deleting..." : "Delete"}
-                  </button>
+                  {p.is_active === false ? (
+                    <button type="button" className="btn btn-success btn-sm" onClick={() => handleReactivate(p)}>
+                      <Power size={13} /> Reactivate
+                    </button>
+                  ) : (
+                    <button type="button" className="btn btn-outline btn-sm" onClick={() => handleDeactivate(p)} disabled={deletingId === p.id}>
+                      <PowerOff size={13} /> Deactivate
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -167,6 +177,9 @@ export default function Archive() {
       </StatGrid>
 
       <div style={{ display: "flex", gap: 10, margin: "22px 0 18px", flexWrap: "wrap" }}>
+        <select className="input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ maxWidth: 180 }} aria-label="Filter record status">
+          <option value="active">Active</option><option value="deactivated">Deactivated</option><option value="all">All records</option>
+        </select>
         <input
           className="input"
           placeholder="Filter by title, author, or keyword..."
@@ -253,19 +266,19 @@ export default function Archive() {
             className="card card-pad"
             style={{ width: "min(100%, 460px)", boxShadow: "var(--shadow-lg)" }}
           >
-            <h2 id="delete-research-title" style={{ fontSize: 19 }}>Confirm deletion</h2>
+            <h2 id="delete-research-title" style={{ fontSize: 19 }}>Confirm deactivation</h2>
             <p style={{ marginTop: 10, color: "var(--ink-700)" }}>
-              Delete <strong>{pendingDelete.title}</strong> from the research archive?
+              Deactivate <strong>{pendingDelete.title}</strong>?
             </p>
-            <p style={{ marginTop: 8, color: "var(--danger-700)", fontSize: 13 }}>
-              This permanently removes the archive record and all attached research files. This action cannot be undone.
+            <p style={{ marginTop: 8, color: "var(--ink-700)", fontSize: 13 }}>
+              The record, academic year, submission status, history, metadata, and attached files will be preserved. It will no longer appear as active and can be reactivated later.
             </p>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
               <button type="button" className="btn btn-outline btn-sm" onClick={() => setPendingDelete(null)}>
                 Cancel
               </button>
               <button type="button" className="btn btn-danger btn-sm" onClick={confirmDelete}>
-                <Trash2 size={13} /> Delete permanently
+                <PowerOff size={13} /> Deactivate
               </button>
             </div>
           </div>
