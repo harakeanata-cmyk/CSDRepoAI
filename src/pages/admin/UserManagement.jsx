@@ -329,6 +329,7 @@ export default function UserManagement() {
             <Field label="First name">
               <input
                 className="input"
+                maxLength={100}
                 value={newUser.first_name}
                 onChange={(e) => setNewUser((prev) => ({ ...prev, first_name: e.target.value }))}
                 required
@@ -337,6 +338,7 @@ export default function UserManagement() {
             <Field label="Middle name">
               <input
                 className="input"
+                maxLength={100}
                 value={newUser.middle_name}
                 onChange={(e) => setNewUser((prev) => ({ ...prev, middle_name: e.target.value }))}
                 required
@@ -345,6 +347,7 @@ export default function UserManagement() {
             <Field label="Last name">
               <input
                 className="input"
+                maxLength={100}
                 value={newUser.last_name}
                 onChange={(e) => setNewUser((prev) => ({ ...prev, last_name: e.target.value }))}
                 required

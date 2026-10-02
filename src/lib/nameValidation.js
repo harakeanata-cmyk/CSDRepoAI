@@ -4,28 +4,34 @@ const REQUIRED_NAME_FIELDS = [
   ["last_name", "last name"],
 ];
 
-// Unicode letters and combining marks support names from a wide range of languages.
-// Separators are limited to ordinary spaces, apostrophes, periods, and hyphens.
-const VALID_NAME_PATTERN = /^[\p{L}\p{M}]+(?:[ .'-][\p{L}\p{M}]+)*$/u;
+// Keep each stored name within the database/UI limit and accept Unicode letters,
+// common name separators, initials, and a trailing period (for example, "Jr.").
+const MAX_PERSON_NAME_LENGTH = 100;
+const VALID_NAME_PATTERN = /^[\p{L}\p{M}]+(?:[ '-][\p{L}\p{M}]+|\.[\p{L}\p{M}]+)*(?:\.)?$/u;
+const INVALID_NAME_MESSAGE = "Please enter a valid name. Letters, spaces, hyphens (-), apostrophes ('), periods (.), and accented letters are allowed (up to 100 characters).";
+
+function normalizeName(value) {
+  return String(value ?? "").normalize("NFC").trim().replace(/\s+/gu, " ");
+}
 
 export function validatePersonNameFields(values = {}) {
   const normalized = {};
   const errors = {};
 
   for (const [field, label] of REQUIRED_NAME_FIELDS) {
-    const value = String(values[field] ?? "").trim();
+    const value = normalizeName(values[field]);
     normalized[field] = value;
     if (!value) {
       errors[field] = `Please enter your ${label}.`;
-    } else if (!VALID_NAME_PATTERN.test(value)) {
-      errors[field] = `Please enter a valid ${label}. Numbers are not allowed.`;
+    } else if (value.length > MAX_PERSON_NAME_LENGTH || !VALID_NAME_PATTERN.test(value)) {
+      errors[field] = INVALID_NAME_MESSAGE;
     }
   }
 
-  const suffix = String(values.suffix ?? "").trim();
+  const suffix = normalizeName(values.suffix);
   normalized.suffix = suffix;
-  if (suffix && !(/^[\p{L}\p{M}]+(?:[ .'-][\p{L}\p{M}]+)*$/u.test(suffix) || /^(?:II|III|IV|V)$/i.test(suffix))) {
-    errors.suffix = "Please enter a valid suffix.";
+  if (suffix && (suffix.length > MAX_PERSON_NAME_LENGTH || !(VALID_NAME_PATTERN.test(suffix) || /^(?:II|III|IV|V)$/i.test(suffix)))) {
+    errors.suffix = INVALID_NAME_MESSAGE;
   }
 
   return { ok: Object.keys(errors).length === 0, errors, normalized };

@@ -108,15 +108,15 @@ export default function Profile() {
           </div>
           <form onSubmit={handleSave} className="profile-form">
           <Field label="First name">
-            <input name="first_name" className="input" aria-invalid={Boolean(nameErrors.first_name)} value={form.first_name} onChange={(e) => setForm((f) => ({ ...f, first_name: e.target.value }))} />
+            <input name="first_name" className="input" maxLength={100} aria-invalid={Boolean(nameErrors.first_name)} value={form.first_name} onChange={(e) => setForm((f) => ({ ...f, first_name: e.target.value }))} />
             {nameErrors.first_name && <small className="profile-password-error">{nameErrors.first_name}</small>}
           </Field>
           <Field label="Middle name">
-            <input name="middle_name" className="input" aria-invalid={Boolean(nameErrors.middle_name)} value={form.middle_name} onChange={(e) => setForm((f) => ({ ...f, middle_name: e.target.value }))} />
+            <input name="middle_name" className="input" maxLength={100} aria-invalid={Boolean(nameErrors.middle_name)} value={form.middle_name} onChange={(e) => setForm((f) => ({ ...f, middle_name: e.target.value }))} />
             {nameErrors.middle_name && <small className="profile-password-error">{nameErrors.middle_name}</small>}
           </Field>
           <Field label="Last name">
-            <input name="last_name" className="input" aria-invalid={Boolean(nameErrors.last_name)} value={form.last_name} onChange={(e) => setForm((f) => ({ ...f, last_name: e.target.value }))} />
+            <input name="last_name" className="input" maxLength={100} aria-invalid={Boolean(nameErrors.last_name)} value={form.last_name} onChange={(e) => setForm((f) => ({ ...f, last_name: e.target.value }))} />
             {nameErrors.last_name && <small className="profile-password-error">{nameErrors.last_name}</small>}
           </Field>
           <Field label="Suffix">
