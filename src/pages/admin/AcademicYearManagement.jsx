@@ -15,6 +15,7 @@ export default function AcademicYearManagement() {
   const [label, setLabel] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [deleteError, setDeleteError] = useState(null);
   const [success, setSuccess] = useState("");
 
   async function loadYears() {
@@ -72,13 +73,19 @@ export default function AcademicYearManagement() {
     const confirmed = window.confirm(`Delete "${item.label}" from the academic-year list?`);
     if (!confirmed) return;
 
+    setDeleteError(null);
+    setError("");
+    setSuccess("");
     try {
       await deleteAcademicYear(item.id);
       await loadYears();
       setSuccess(`"${item.label}" was removed.`);
-    } catch (deleteError) {
-      console.error("Failed to delete academic year:", deleteError);
-      setError(deleteError?.message || "Unable to delete academic year.");
+    } catch (deleteFailure) {
+      console.error("Failed to delete academic year:", deleteFailure);
+      setDeleteError({
+        id: item.id,
+        message: deleteFailure?.message || "Unable to delete academic year.",
+      });
     }
   }
 
@@ -175,6 +182,11 @@ export default function AcademicYearManagement() {
                           Delete
                         </button>
                       </div>
+                      {deleteError?.id === item.id && (
+                        <div className="alert alert-danger" role="alert" style={{ marginTop: 8 }}>
+                          {deleteError.message}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
