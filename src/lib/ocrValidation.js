@@ -93,7 +93,7 @@ export function validateOcrResearchRecord({ ocrText, title, authors, adviser, pa
     return { ok: false, message: "One or more author names are invalid or do not match the extracted paper text. Check the author names and OCR text before archiving." };
   }
 
-  if (String(adviser ?? "").trim() && (/[^\p{L} .'-]/u.test(String(adviser)) || !overlapsDocument(adviser, documentTokens, 1))) {
+  if (String(adviser ?? "").trim() && (/[^\p{L} .,'()-]/u.test(String(adviser)) || !overlapsDocument(adviser, documentTokens, 1))) {
     return { ok: false, message: "The adviser name could not be matched to the extracted paper text. Check the name and OCR text before archiving." };
   }
 
@@ -120,7 +120,11 @@ export function validateOcrResearchRecord({ ocrText, title, authors, adviser, pa
   const sdgEvidenceTokens = new Set(getMeaningfulTokens(`${title ?? ""} ${abstract ?? ""} ${Array.isArray(keywords) ? keywords.join(" ") : keywords ?? ""} ${ocrText ?? ""}`));
   const unrelatedSdg = (sdgTags || []).find((id) => !(SDG_EVIDENCE[id] || []).some((term) => sdgEvidenceTokens.has(term)));
   if (unrelatedSdg) {
-    return { ok: false, message: `SDG ${unrelatedSdg} is not supported by the extracted text. Review the selected SDG alignment before archiving.` };
+    return {
+      ok: true,
+      message: "",
+      warning: `SDG ${unrelatedSdg} has no exact keyword match in the extracted text. Confirm that this alignment is intentional; this warning does not block archiving.`,
+    };
   }
 
   return { ok: true, message: "" };

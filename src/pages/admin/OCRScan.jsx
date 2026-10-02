@@ -745,6 +745,12 @@ function handleFile(e) {
               <small>Correct the extracted text and metadata, or upload a readable research paper.</small>
             </div>
           )}
+          {ocrRecordCheck.ok && ocrRecordCheck.warning && (
+            <div className="metadata-analysis" role="status" aria-live="polite">
+              <strong>Review SDG alignment</strong>
+              <span>{ocrRecordCheck.warning}</span>
+            </div>
+          )}
 
           {formatReview.status !== "idle" && (
             <div
