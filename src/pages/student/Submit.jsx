@@ -43,24 +43,24 @@ function buildDefaultForm(profile) {
 export default function Submit() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
-  const draftOwnerId = useRef(user?.id || null);
-  const initialDraftRef = useRef(undefined);
-  if (initialDraftRef.current === undefined) initialDraftRef.current = user?.id ? loadSubmissionDraft(user.id) : null;
-  const initialDraft = initialDraftRef.current;
-  const [draftStateOwner, setDraftStateOwner] = useState(user?.id || null);
-  const [form, setForm] = useState(() => ({ ...buildDefaultForm(profile), ...(initialDraft?.form || {}) }));
-  const [sdgTags, setSdgTags] = useState(() => initialDraft?.sdgTags || []);
-  const [files, setFiles] = useState(() => initialDraft?.files || ({ manuscript: null, sourceCode: null, ieee: null, acm: null, apa: null }));
-  const [detachedFiles, setDetachedFiles] = useState(() => initialDraft?.detachedFiles || {});
-  const [manuscriptText, setManuscriptText] = useState(() => initialDraft?.manuscriptText || "");
-  const [status, setStatus] = useState(() => initialDraft?.status || "idle"); // idle | submitting | done | error
-  const [errorMsg, setErrorMsg] = useState(() => initialDraft?.errorMsg || "");
+  const draftLoadSequence = useRef(0);
+  const draftSaveSequence = useRef(0);
+  const skipDraftSaveOnce = useRef(false);
+  const [draftStateOwner, setDraftStateOwner] = useState(null);
+  const [draftSaveStatus, setDraftSaveStatus] = useState("loading");
+  const [form, setForm] = useState(() => buildDefaultForm(profile));
+  const [sdgTags, setSdgTags] = useState([]);
+  const [files, setFiles] = useState({ manuscript: null, sourceCode: null, ieee: null, acm: null, apa: null });
+  const [detachedFiles, setDetachedFiles] = useState({});
+  const [manuscriptText, setManuscriptText] = useState("");
+  const [status, setStatus] = useState("idle"); // idle | submitting | done | error
+  const [errorMsg, setErrorMsg] = useState("");
   const [related, setRelated] = useState([]);
-  const [suggestions, setSuggestions] = useState(() => initialDraft?.suggestions || null);
-  const [documentAnalysis, setDocumentAnalysis] = useState(() => initialDraft?.documentAnalysis || { status: "idle", message: "" });
-  const [documentChecks, setDocumentChecks] = useState(() => initialDraft?.documentChecks || {});
-  const [fileErrors, setFileErrors] = useState(() => initialDraft?.fileErrors || {});
-  const [typeConfirmations, setTypeConfirmations] = useState(() => initialDraft?.typeConfirmations || {});
+  const [suggestions, setSuggestions] = useState(null);
+  const [documentAnalysis, setDocumentAnalysis] = useState({ status: "idle", message: "" });
+  const [documentChecks, setDocumentChecks] = useState({});
+  const [fileErrors, setFileErrors] = useState({});
+  const [typeConfirmations, setTypeConfirmations] = useState({});
   const analysisIds = useRef({});
   const [submittedPaper, setSubmittedPaper] = useState(null);
   const [academicYears, setAcademicYears] = useState([]);
@@ -80,30 +80,50 @@ export default function Submit() {
   useUnloadWarning(hasUnsavedSubmission);
 
   useEffect(() => {
-    const nextUserId = user?.id || null;
-    if (draftOwnerId.current === nextUserId) return;
+    const ownerId = user?.id || null;
+    const sequence = ++draftLoadSequence.current;
+    setDraftStateOwner(null);
+    setDraftSaveStatus(ownerId ? "loading" : "idle");
     Object.keys(analysisIds.current).forEach(nextAnalysisId);
-    if (draftOwnerId.current) clearSubmissionDraft(draftOwnerId.current);
-    draftOwnerId.current = nextUserId;
-    const draft = nextUserId ? loadSubmissionDraft(nextUserId) : null;
-    setForm({ ...buildDefaultForm(profile), ...(draft?.form || {}) });
-    setSdgTags(draft?.sdgTags || []);
-    setFiles(draft?.files || { manuscript: null, sourceCode: null, ieee: null, acm: null, apa: null });
-    setDetachedFiles(draft?.detachedFiles || {});
-    setManuscriptText(draft?.manuscriptText || "");
-    setStatus(draft?.status || "idle");
-    setErrorMsg(draft?.errorMsg || "");
-    setSuggestions(draft?.suggestions || null);
-    setDocumentAnalysis(draft?.documentAnalysis || { status: "idle", message: "" });
-    setDocumentChecks(draft?.documentChecks || {});
-    setFileErrors(draft?.fileErrors || {});
-    setTypeConfirmations(draft?.typeConfirmations || {});
-    setDraftStateOwner(nextUserId);
-  }, [user?.id]);
+    if (!ownerId) return;
+
+    loadSubmissionDraft(ownerId).then((draft) => {
+      if (sequence !== draftLoadSequence.current) return;
+      skipDraftSaveOnce.current = true;
+      setForm({ ...buildDefaultForm(profile), ...(draft?.form || {}) });
+      setSdgTags(draft?.sdgTags || []);
+      setFiles(draft?.files || { manuscript: null, sourceCode: null, ieee: null, acm: null, apa: null });
+      setDetachedFiles(draft?.detachedFiles || {});
+      setManuscriptText(draft?.manuscriptText || "");
+      setStatus(draft?.status || "idle");
+      setErrorMsg(draft?.errorMsg || "");
+      setSuggestions(draft?.suggestions || null);
+      setDocumentAnalysis(draft?.documentAnalysis || { status: "idle", message: "" });
+      setDocumentChecks(draft?.documentChecks || {});
+      setFileErrors(draft?.fileErrors || {});
+      setTypeConfirmations(draft?.typeConfirmations || {});
+      setDraftSaveStatus(draft ? "restored" : "idle");
+      setDraftStateOwner(ownerId);
+    }).catch(() => {
+      if (sequence !== draftLoadSequence.current) return;
+      setDraftSaveStatus("unavailable");
+      setDraftStateOwner(ownerId);
+    });
+    return () => {
+      if (draftLoadSequence.current === sequence) draftLoadSequence.current += 1;
+    };
+  }, [user?.id, profile]);
 
   useEffect(() => {
     if (!user?.id || draftStateOwner !== user.id || status === "done" || !hasUnsavedSubmission) return;
-    saveSubmissionDraft(user.id, {
+    if (skipDraftSaveOnce.current) {
+      skipDraftSaveOnce.current = false;
+      return;
+    }
+    setDraftSaveStatus("saving");
+    const saveSequence = ++draftSaveSequence.current;
+    const timeoutId = setTimeout(() => {
+      saveSubmissionDraft(user.id, {
       form,
       sdgTags,
       files,
@@ -116,7 +136,12 @@ export default function Submit() {
       documentChecks,
       fileErrors,
       typeConfirmations,
-    });
+      }).then((result) => {
+        if (saveSequence !== draftSaveSequence.current || user?.id !== result?.userId) return;
+        setDraftSaveStatus(result.persistent ? (result.saved ? "saved" : "restored") : "unavailable");
+      });
+    }, 450);
+    return () => clearTimeout(timeoutId);
   }, [
     user?.id, draftStateOwner, hasUnsavedSubmission, form, sdgTags, files, detachedFiles, manuscriptText,
     status, errorMsg, suggestions, documentAnalysis, documentChecks, fileErrors, typeConfirmations,
@@ -268,7 +293,8 @@ export default function Submit() {
   }
 
   function handleClearForm() {
-    if (user?.id) clearSubmissionDraft(user.id);
+    if (user?.id) void clearSubmissionDraft(user.id);
+    draftSaveSequence.current += 1;
     Object.keys(files).forEach(nextAnalysisId);
     setForm(buildDefaultForm(profile));
     setSdgTags([]);
@@ -352,7 +378,8 @@ export default function Submit() {
         apaFile: files.apa,
         userId: user.id,
       });
-      clearSubmissionDraft(user.id);
+      await clearSubmissionDraft(user.id);
+      setDraftSaveStatus("idle");
       setSubmittedPaper(result);
       setStatus("done");
     } catch (err) {
@@ -719,6 +746,15 @@ export default function Submit() {
 
           <div className="form-section-foot">
             <div style={{ fontSize: 12, color: "var(--ink-500)" }}>
+              {draftSaveStatus !== "idle" && (
+                <div role="status" style={{ marginBottom: 6 }}>
+                  {draftSaveStatus === "loading" && "Loading saved draft…"}
+                  {draftSaveStatus === "saving" && "Saving draft locally…"}
+                  {draftSaveStatus === "saved" && "Draft saved on this device."}
+                  {draftSaveStatus === "restored" && "Draft restored; selected files are ready."}
+                  {draftSaveStatus === "unavailable" && "Local draft storage is unavailable. Keep this page open to retain selected files."}
+                </div>
+              )}
               {errorMsg ? (
                 <span className="auth-error" style={{ margin: 0 }}>{errorMsg}</span>
               ) : (

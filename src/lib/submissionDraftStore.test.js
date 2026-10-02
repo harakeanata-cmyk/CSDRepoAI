@@ -6,65 +6,91 @@ import {
   loadSubmissionDraft,
   resetSubmissionDraftMemory,
   saveSubmissionDraft,
-  SUBMISSION_DRAFT_TTL_MS,
 } from "./submissionDraftStore.js";
 
-const storageValues = new Map();
-const sessionStorageMock = {
-  getItem: (key) => storageValues.get(key) ?? null,
-  setItem: (key, value) => storageValues.set(key, String(value)),
-  removeItem: (key) => storageValues.delete(key),
+const records = new Map();
+const originalIndexedDB = Object.getOwnPropertyDescriptor(globalThis, "indexedDB");
+
+function requestFor(run) {
+  const request = {};
+  setTimeout(() => {
+    try {
+      request.result = run();
+      request.onsuccess?.();
+    } catch (error) {
+      request.error = error;
+      request.onerror?.();
+    }
+  }, 0);
+  return request;
+}
+
+const indexedDBMock = {
+  open() {
+    const request = {};
+    const names = { contains: (name) => name === "drafts" };
+    const database = {
+      objectStoreNames: names,
+      createObjectStore() {},
+      close() {},
+      transaction() {
+        const transaction = {};
+        transaction.objectStore = () => ({
+          get: (key) => requestFor(() => structuredClone(records.get(key))),
+          put: (record) => {
+            records.set(record.userId, structuredClone(record));
+            setTimeout(() => transaction.oncomplete?.(), 0);
+          },
+          delete: (key) => {
+            records.delete(key);
+            setTimeout(() => transaction.oncomplete?.(), 0);
+          },
+        });
+        transaction.abort = () => setTimeout(() => transaction.onabort?.(), 0);
+        return transaction;
+      },
+    };
+    setTimeout(() => {
+      request.result = database;
+      request.onsuccess?.();
+    }, 0);
+    return request;
+  },
 };
-const originalStorage = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
 
 beforeEach(() => {
-  storageValues.clear();
-  Object.defineProperty(globalThis, "sessionStorage", { configurable: true, value: sessionStorageMock });
+  records.clear();
+  Object.defineProperty(globalThis, "indexedDB", { configurable: true, value: indexedDBMock });
 });
 
 afterEach(() => {
-  if (originalStorage) Object.defineProperty(globalThis, "sessionStorage", originalStorage);
-  else delete globalThis.sessionStorage;
+  if (originalIndexedDB) Object.defineProperty(globalThis, "indexedDB", originalIndexedDB);
+  else delete globalThis.indexedDB;
 });
 
-test("keeps actual files in tab memory and stores only file metadata in sessionStorage", () => {
-  const selectedFile = new File(["private file bytes"], "paper.pdf", { type: "application/pdf" });
-  const draft = {
+test("persists and restores actual File bytes and the submission draft after a reload", async () => {
+  const selectedFile = new File(["private file bytes"], "paper.pdf", { type: "application/pdf", lastModified: 1234 });
+  const manuscriptText = "PRIVATE EXTRACTED MANUSCRIPT BODY";
+  await saveSubmissionDraft("student-a", {
     form: { title: "Study title", abstract: "Study abstract", keywords: "research" },
     files: { manuscript: selectedFile },
     detachedFiles: {},
-    manuscriptText: "PRIVATE EXTRACTED MANUSCRIPT BODY",
+    manuscriptText,
     documentChecks: { manuscript: { type: "Full Research Manuscript", confidence: 0.94, status: "done" } },
-  };
-  saveSubmissionDraft("student-a", draft, 1000);
+  }, 1000);
 
-  assert.equal(loadSubmissionDraft("student-a", 1001).files.manuscript, selectedFile);
-  const stored = storageValues.get("csdrepoai_submission_draft_v1_student-a");
-  assert.match(stored, /paper\.pdf/);
-  assert.doesNotMatch(stored, /PRIVATE EXTRACTED MANUSCRIPT BODY|private file bytes/);
-});
-
-test("reload restores form and validation metadata but asks for the actual file again", () => {
-  const selectedFile = new File(["bytes"], "paper.pdf", { type: "application/pdf" });
-  saveSubmissionDraft("student-b", {
-    form: { title: "Saved title" },
-    files: { manuscript: selectedFile },
-    detachedFiles: {},
-    manuscriptText: "not persisted",
-    documentChecks: { manuscript: { type: "Full Research Manuscript", confidence: 0.94, status: "done" } },
-  }, 2000);
-
-  resetSubmissionDraftMemory("student-b");
-  const restored = loadSubmissionDraft("student-b", 2001);
-  assert.equal(restored.form.title, "Saved title");
-  assert.equal(restored.files.manuscript, null);
-  assert.equal(restored.detachedFiles.manuscript.name, "paper.pdf");
-  assert.equal(restored.documentChecks.manuscript.type, "Full Research Manuscript");
-  assert.equal(restored.manuscriptText, "");
+  resetSubmissionDraftMemory("student-a");
+  const restored = await loadSubmissionDraft("student-a");
+  assert.equal(restored.form.title, "Study title");
+  assert.equal(restored.files.manuscript.name, "paper.pdf");
+  assert.equal(restored.files.manuscript.type, "application/pdf");
+  assert.equal(await restored.files.manuscript.text(), "private file bytes");
+  assert.equal(restored.manuscriptText, manuscriptText);
+  assert.equal(restored.documentChecks.manuscript.confidence, 0.94);
   assert.equal(restored.restoredAfterReload, true);
 });
 
-test("keeps multiple attachment slots associated with their own files", () => {
+test("stores each upload slot's actual file independently", async () => {
   const slotFiles = {
     manuscript: new File(["manuscript"], "main.pdf", { type: "application/pdf" }),
     sourceCode: new File(["source"], "source.zip", { type: "application/zip" }),
@@ -72,23 +98,46 @@ test("keeps multiple attachment slots associated with their own files", () => {
     acm: new File(["acm"], "acm.pdf", { type: "application/pdf" }),
     apa: new File(["apa"], "apa.pdf", { type: "application/pdf" }),
   };
-  saveSubmissionDraft("student-attachments", { form: {}, files: slotFiles, detachedFiles: {} }, 3000);
-  assert.deepEqual(loadSubmissionDraft("student-attachments", 3001).files, slotFiles);
+  await saveSubmissionDraft("student-attachments", { form: {}, files: slotFiles }, 2000);
+  resetSubmissionDraftMemory("student-attachments");
+  const restored = await loadSubmissionDraft("student-attachments");
+  assert.deepEqual(Object.fromEntries(Object.entries(restored.files).map(([slot, file]) => [slot, file?.name])), {
+    manuscript: "main.pdf", sourceCode: "source.zip", ieee: "ieee.pdf", acm: "acm.pdf", apa: "apa.pdf",
+  });
+  assert.equal(await restored.files.sourceCode.text(), "source");
 });
 
-test("drafts are isolated by user and expire after seven inactive days", () => {
-  saveSubmissionDraft("student-c", { form: { title: "Private title" }, files: {}, detachedFiles: {} }, 5000);
-  assert.equal(loadSubmissionDraft("student-d", 5001), null);
-  resetSubmissionDraftMemory("student-c");
-  assert.equal(loadSubmissionDraft("student-c", 5000 + SUBMISSION_DRAFT_TTL_MS + 1), null);
-  assert.equal(storageValues.has("csdrepoai_submission_draft_v1_student-c"), false);
+test("drafts are isolated by authenticated user ID", async () => {
+  await saveSubmissionDraft("student-a", { form: { title: "Private title" }, files: {} }, 3000);
+  assert.equal(await loadSubmissionDraft("student-b"), null);
+  assert.equal((await loadSubmissionDraft("student-a")).form.title, "Private title");
 });
 
-test("clearing the draft removes memory and session data", () => {
-  saveSubmissionDraft("student-e", { form: { title: "Draft" }, files: {}, detachedFiles: {} }, 9000);
-  clearSubmissionDraft("student-e");
-  assert.equal(loadSubmissionDraft("student-e", 9001), null);
-  assert.equal(storageValues.has("csdrepoai_submission_draft_v1_student-e"), false);
+test("replacement and removal are persisted without reviving the previous file", async () => {
+  await saveSubmissionDraft("student-file", {
+    form: {}, files: { manuscript: new File(["old"], "old.pdf") },
+  }, 4000);
+  await saveSubmissionDraft("student-file", {
+    form: {}, files: { manuscript: new File(["new"], "new.pdf") },
+  }, 4001);
+  resetSubmissionDraftMemory("student-file");
+  assert.equal((await loadSubmissionDraft("student-file")).files.manuscript.name, "new.pdf");
+
+  await saveSubmissionDraft("student-file", { form: {}, files: { manuscript: null } }, 4002);
+  resetSubmissionDraftMemory("student-file");
+  assert.equal((await loadSubmissionDraft("student-file")).files.manuscript, null);
+});
+
+test("does not silently expire an old unfinished draft", async () => {
+  await saveSubmissionDraft("student-old", { form: { title: "Still mine" }, files: {} }, 1);
+  resetSubmissionDraftMemory("student-old");
+  assert.equal((await loadSubmissionDraft("student-old")).form.title, "Still mine");
+});
+
+test("clears the local draft on explicit discard or successful submission", async () => {
+  await saveSubmissionDraft("student-clear", { form: { title: "Draft" }, files: {} });
+  await clearSubmissionDraft("student-clear");
+  assert.equal(await loadSubmissionDraft("student-clear"), null);
 });
 
 test("shares one in-flight or completed analysis for the same live File object", async () => {
