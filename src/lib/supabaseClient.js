@@ -30,12 +30,16 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // replace the first tab's Supabase session. sessionStorage survives reloads
 // while remaining isolated to the tab (and is also available on mobile).
 const tabSessionStorage = typeof window !== "undefined" ? window.sessionStorage : undefined;
+// A preview tab inherits a copy of its opener's sessionStorage. Do not let
+// multiple read-only previews rotate that same copied refresh token; the
+// authenticated application tab continues refreshing its own session.
+const isPaperPreviewTab = typeof window !== "undefined" && window.location.pathname === "/paper-preview";
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage: tabSessionStorage,
     persistSession: true,
-    autoRefreshToken: true,
+    autoRefreshToken: !isPaperPreviewTab,
     detectSessionInUrl: true,
   },
 });
