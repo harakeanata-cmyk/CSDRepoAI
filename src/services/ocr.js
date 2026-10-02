@@ -6,6 +6,7 @@ import { stripPageMarkers } from "./ocrTextUtils.js";
 import { checkResearchDuplicate } from "./search.js";
 import { createUniqueStorageToken } from "../lib/storagePath.js";
 import { comparePaperFormats, formatSectionLabels } from "../lib/paperFormat.js";
+import { validateOcrResearchRecord } from "../lib/ocrValidation.js";
 
 /**
  * OCR Digitization Module
@@ -646,6 +647,9 @@ export async function digitizeAndArchive({
   adminId,
   onProgress,
 }) {
+  const recordCheck = validateOcrResearchRecord({ ocrText, title, authors, adviser, panelMembers, abstract, keywords, sdgTags });
+  if (!recordCheck.ok) throw new Error(recordCheck.message);
+
   const rawFiles = imageFiles?.length ? imageFiles : imageFile ? [imageFile] : [];
   const filesToUpload = await normalizeFilesForArchive(rawFiles);
 

@@ -28,6 +28,7 @@ import { suggestKeywordsWithAI, suggestMetadata } from "../../services/metadataS
 import { getAcademicYears } from "../../services/academicYears";
 import { useUnloadWarning } from "../../lib/useUnloadWarning";
 import { SDG_LIST } from "../../lib/sdgList";
+import { validateOcrResearchRecord } from "../../lib/ocrValidation";
 import { PROGRAM_OPTIONS } from "../../lib/programs";
 
 const STEPS = [
@@ -352,6 +353,10 @@ function handleFile(e) {
 
   async function handleArchive(e) {
     e.preventDefault();
+    if (!ocrRecordCheck.ok) {
+      setUploadError(ocrRecordCheck.message);
+      return;
+    }
     setStep("saving");
     setUploadError("");
     setSaveProgress({ completed: 0, total: files.length, phase: "preparing" });
@@ -434,6 +439,16 @@ function handleFile(e) {
   const overallProgressPercent = totalPages > 0
     ? Math.min(100, Math.max(0, Math.round(((donePages + progress) / totalPages) * 100)))
     : 0;
+  const ocrRecordCheck = validateOcrResearchRecord({
+    ocrText,
+    title: meta.title,
+    authors: meta.authors,
+    adviser: meta.adviser,
+    panelMembers: meta.panelMembers,
+    abstract: meta.abstract,
+    keywords: meta.keywords,
+    sdgTags,
+  });
 
   return (
     <Layout>
@@ -723,6 +738,14 @@ function handleFile(e) {
             Fields below were parsed from the title page. Please review and correct before archiving.
           </p>
 
+          {!ocrRecordCheck.ok && (
+            <div className="metadata-analysis error" role="alert" aria-live="polite">
+              <strong>Cannot archive this scan yet</strong>
+              <span>{ocrRecordCheck.message}</span>
+              <small>Correct the extracted text and metadata, or upload a readable research paper.</small>
+            </div>
+          )}
+
           {formatReview.status !== "idle" && (
             <div
               className={`metadata-analysis${formatReview.status === "checking" ? " analyzing" : formatReview.status === "different" ? " error" : ""}`}
@@ -824,7 +847,7 @@ function handleFile(e) {
             </div>
           )}
 
-          <button type="submit" disabled={step === "saving"} className="btn btn-primary" style={{ marginTop: 4 }}>
+          <button type="submit" disabled={step === "saving" || !ocrRecordCheck.ok} className="btn btn-primary" style={{ marginTop: 4 }}>
             {step === "saving"
               ? saveProgress.phase === "checking"
                 ? "Checking for similar topics..."
