@@ -93,7 +93,7 @@ function requestResult(request) {
 }
 
 /** Saves a user-scoped draft, including actual File bytes, in IndexedDB. */
-export async function saveSubmissionDraft(userId, draft, now = Date.now()) {
+export async function saveSubmissionDraft(userId, draft, now = Date.now(), expectedRevision = null) {
   if (!userId || !draft) return { userId, saved: false, persistent: false };
   const versionAtStart = clearVersions.get(userId) || 0;
   const previous = inMemoryDrafts.get(userId);
@@ -116,13 +116,23 @@ export async function saveSubmissionDraft(userId, draft, now = Date.now()) {
       inMemoryDrafts.set(userId, current);
       return { userId, saved: false, persistent: true, superseded: true };
     }
+    const currentRevision = current ? `${current.updatedAt}:${current.writerId}` : null;
+    if (currentRevision !== expectedRevision) {
+      transaction.abort();
+      return { userId, saved: false, persistent: true, conflict: true };
+    }
     store.put(snapshot);
     await new Promise((resolve, reject) => {
       transaction.oncomplete = resolve;
       transaction.onerror = () => reject(transaction.error || new Error("Could not save the local draft."));
       transaction.onabort = () => reject(transaction.error || new Error("Local draft save was cancelled."));
     });
-    return { userId, saved: true, persistent: true };
+    return {
+      userId,
+      saved: true,
+      persistent: true,
+      revision: `${snapshot.updatedAt}:${snapshot.writerId}`,
+    };
   } catch (error) {
     // Keep the File references in memory for this page session; the UI reports that
     // cross-refresh persistence failed instead of claiming the draft was saved.

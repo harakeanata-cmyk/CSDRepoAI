@@ -114,18 +114,29 @@ test("drafts are isolated by authenticated user ID", async () => {
 });
 
 test("replacement and removal are persisted without reviving the previous file", async () => {
-  await saveSubmissionDraft("student-file", {
+  const firstSave = await saveSubmissionDraft("student-file", {
     form: {}, files: { manuscript: new File(["old"], "old.pdf") },
   }, 4000);
-  await saveSubmissionDraft("student-file", {
+  const secondSave = await saveSubmissionDraft("student-file", {
     form: {}, files: { manuscript: new File(["new"], "new.pdf") },
-  }, 4001);
+  }, 4001, firstSave.revision);
+  assert.equal(secondSave.saved, true);
   resetSubmissionDraftMemory("student-file");
   assert.equal((await loadSubmissionDraft("student-file")).files.manuscript.name, "new.pdf");
 
-  await saveSubmissionDraft("student-file", { form: {}, files: { manuscript: null } }, 4002);
+  const removalSave = await saveSubmissionDraft("student-file", { form: {}, files: { manuscript: null } }, 4002, secondSave.revision);
+  assert.equal(removalSave.saved, true);
   resetSubmissionDraftMemory("student-file");
   assert.equal((await loadSubmissionDraft("student-file")).files.manuscript, null);
+});
+
+test("a stale tab revision cannot overwrite a newer draft", async () => {
+  const firstTab = await saveSubmissionDraft("student-tabs", { form: { title: "First" }, files: {} }, 5000);
+  const secondTab = await saveSubmissionDraft("student-tabs", { form: { title: "Stale edit" }, files: {} }, 5001, null);
+  assert.equal(secondTab.conflict, true);
+  resetSubmissionDraftMemory("student-tabs");
+  assert.equal((await loadSubmissionDraft("student-tabs")).form.title, "First");
+  assert.ok(firstTab.revision);
 });
 
 test("does not silently expire an old unfinished draft", async () => {

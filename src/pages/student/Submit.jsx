@@ -45,6 +45,7 @@ export default function Submit() {
   const navigate = useNavigate();
   const draftLoadSequence = useRef(0);
   const draftSaveSequence = useRef(0);
+  const draftRevision = useRef(null);
   const skipDraftSaveOnce = useRef(false);
   const [draftStateOwner, setDraftStateOwner] = useState(null);
   const [draftSaveStatus, setDraftSaveStatus] = useState("loading");
@@ -103,6 +104,7 @@ export default function Submit() {
       setFileErrors(draft?.fileErrors || {});
       setTypeConfirmations(draft?.typeConfirmations || {});
       setDraftSaveStatus(draft ? "restored" : "idle");
+      draftRevision.current = draft ? `${draft.updatedAt}:${draft.writerId}` : null;
       setDraftStateOwner(ownerId);
     }).catch(() => {
       if (sequence !== draftLoadSequence.current) return;
@@ -136,9 +138,10 @@ export default function Submit() {
       documentChecks,
       fileErrors,
       typeConfirmations,
-      }).then((result) => {
+      }, Date.now(), draftRevision.current).then((result) => {
         if (saveSequence !== draftSaveSequence.current || user?.id !== result?.userId) return;
-        setDraftSaveStatus(result.persistent ? (result.saved ? "saved" : "restored") : "unavailable");
+        if (result.saved) draftRevision.current = result.revision;
+        setDraftSaveStatus(result.conflict ? "conflict" : result.persistent ? (result.saved ? "saved" : "restored") : "unavailable");
       });
     }, 450);
     return () => clearTimeout(timeoutId);
@@ -295,6 +298,7 @@ export default function Submit() {
   function handleClearForm() {
     if (user?.id) void clearSubmissionDraft(user.id);
     draftSaveSequence.current += 1;
+    draftRevision.current = null;
     Object.keys(files).forEach(nextAnalysisId);
     setForm(buildDefaultForm(profile));
     setSdgTags([]);
@@ -379,6 +383,7 @@ export default function Submit() {
         userId: user.id,
       });
       await clearSubmissionDraft(user.id);
+      draftRevision.current = null;
       setDraftSaveStatus("idle");
       setSubmittedPaper(result);
       setStatus("done");
@@ -752,6 +757,7 @@ export default function Submit() {
                   {draftSaveStatus === "saving" && "Saving draft locally…"}
                   {draftSaveStatus === "saved" && "Draft saved on this device."}
                   {draftSaveStatus === "restored" && "Draft restored; selected files are ready."}
+                  {draftSaveStatus === "conflict" && "A newer draft exists in another tab. Reload this page to continue from the latest saved draft."}
                   {draftSaveStatus === "unavailable" && "Local draft storage is unavailable. Keep this page open to retain selected files."}
                 </div>
               )}
