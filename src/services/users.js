@@ -65,6 +65,8 @@ export async function createUserAccount({ email, password, full_name, first_name
       data: metadata,
     },
   });
+  if (error) throw error;
+  return data;
 }
 
 /** User Management Module: change a user's role */

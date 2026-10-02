@@ -7,6 +7,7 @@
 -- ---------------------------------------------------------
 create table if not exists profiles (
   id uuid primary key references auth.users(id) on delete cascade,
+  email text,
   full_name text not null,
   first_name text,
   middle_name text,
@@ -28,6 +29,7 @@ returns trigger as $$
 begin
   insert into public.profiles (
     id,
+    email,
     full_name,
     first_name,
     middle_name,
@@ -40,6 +42,7 @@ begin
   )
   values (
     new.id,
+    new.email,
     coalesce(
       new.raw_user_meta_data->>'full_name',
       trim(
@@ -66,6 +69,7 @@ end;
 $$ language plpgsql security definer;
 
 alter table if exists profiles add column if not exists first_name text;
+alter table if exists profiles add column if not exists email text;
 alter table if exists profiles add column if not exists middle_name text;
 alter table if exists profiles add column if not exists last_name text;
 alter table if exists profiles add column if not exists suffix text;
