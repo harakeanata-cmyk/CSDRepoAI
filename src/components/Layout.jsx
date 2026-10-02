@@ -216,18 +216,6 @@ export default function Layout({ children }) {
 
   return (
     <div className="app-shell">
-      <div className="mobile-topbar">
-        <div className="mobile-topbar-brand">
-          <img src="/logo.png" alt="CSDRepoAI logo" className="mobile-topbar-logo" width="26" height="26" />
-          <span className="mobile-topbar-title">CSDRepoAI</span>
-        </div>
-        <div className="mobile-topbar-actions">
-          <button className="mobile-menu-btn" onClick={() => setMenuOpen(true)} aria-label="Open menu">
-            <Menu size={18} />
-          </button>
-        </div>
-      </div>
-
       <div className={`sidebar-backdrop${menuOpen ? " open" : ""}`} onClick={() => setMenuOpen(false)} />
 
       <aside className={`sidebar${menuOpen ? " open" : ""}`}>
@@ -314,6 +302,10 @@ export default function Layout({ children }) {
       </aside>
       <main className="app-main">
         <header className="portal-topbar">
+          <div className="portal-topbar-brand">
+            <img src="/logo.png" alt="" width="28" height="28" />
+            <span>CSDRepoAI</span>
+          </div>
           <div className="portal-topbar-actions">
             <button
               type="button"
@@ -325,7 +317,7 @@ export default function Layout({ children }) {
               {darkMode ? <Sun size={17} /> : <Moon size={17} />}
             </button>
             <div className="portal-profile-menu-wrap">
-              <button type="button" className="portal-profile-button" onClick={() => setProfileMenuOpen((open) => !open)} aria-expanded={profileMenuOpen} aria-haspopup="menu">
+              <button type="button" className="portal-profile-button" onClick={() => setProfileMenuOpen((open) => !open)} aria-label={`Account: ${profileName}`} aria-expanded={profileMenuOpen} aria-haspopup="menu">
                 <span className="portal-profile-avatar">{initials}</span><span className="portal-profile-name">{profileName}</span><ChevronDown size={14} />
               </button>
               {profileMenuOpen && (
@@ -350,6 +342,15 @@ export default function Layout({ children }) {
                 </div>
               )}
             </div>
+            <button
+              type="button"
+              className="mobile-menu-btn portal-mobile-menu-btn"
+              onClick={() => setMenuOpen(true)}
+              aria-label="Open navigation menu"
+              aria-expanded={menuOpen}
+            >
+              <Menu size={18} />
+            </button>
           </div>
         </header>
         {children}
