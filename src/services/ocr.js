@@ -329,13 +329,13 @@ function isDocxFile(file) {
     || /\.docx$/i.test(file?.name || "");
 }
 
-async function pdfFileToPageImageFiles(file, maxPages = Infinity) {
+async function pdfFileToPageImageFiles(file) {
   const { getDocument } = await getPdfJs();
   const pdfData = await file.arrayBuffer();
   const pdf = await getDocument({ data: pdfData }).promise;
   const pageFiles = [];
 
-  for (let pageNumber = 1; pageNumber <= Math.min(pdf.numPages, maxPages); pageNumber += 1) {
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
     const page = await pdf.getPage(pageNumber);
     const viewport = page.getViewport({ scale: 2 });
     const canvas = document.createElement("canvas");
@@ -365,8 +365,8 @@ async function pdfFileToPageImageFiles(file, maxPages = Infinity) {
   return pageFiles;
 }
 
-export async function extractScannedPdfText(file, { maxPages = 12, onProgress } = {}) {
-  const pageFiles = await pdfFileToPageImageFiles(file, maxPages);
+export async function extractScannedPdfText(file, { onProgress } = {}) {
+  const pageFiles = await pdfFileToPageImageFiles(file);
   const result = await scanDocuments(pageFiles, onProgress);
   return result.text;
 }

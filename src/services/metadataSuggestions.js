@@ -421,7 +421,7 @@ async function extractPdfText(file) {
   // PaddleOCR flow to recover the title page and common front-matter sections.
   try {
     const { extractScannedPdfText } = await import("./ocr.js");
-    const scannedText = await extractScannedPdfText(file, { maxPages: 12 });
+    const scannedText = await extractScannedPdfText(file);
     return scannedText.trim() ? scannedText : text;
   } catch (error) {
     console.warn("Scanned PDF OCR fallback failed; using available PDF text.", error);
