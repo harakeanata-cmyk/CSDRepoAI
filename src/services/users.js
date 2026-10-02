@@ -17,16 +17,13 @@ export function shouldFallbackDeleteError(error) {
 export async function getUsers({ role } = {}) {
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
   if (sessionError) throw sessionError;
-  const accessToken = sessionData.session?.access_token;
-  if (!accessToken) throw new Error("Please sign in again to load the user directory.");
+  if (!sessionData.session?.access_token) throw new Error("Please sign in again to load the user directory.");
 
-  const query = role ? `?role=${encodeURIComponent(role)}` : "";
-  const response = await fetch(`${ADMIN_USERS_URL}${query}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.error || "Unable to load the user directory.");
-  return result.users || [];
+  let request = supabase.from("profiles").select("*").order("created_at", { ascending: false });
+  if (role) request = request.eq("role", role);
+  const { data, error } = await request;
+  if (error) throw error;
+  return data || [];
 }
 
 export async function createUserAccount({ email, password, full_name, first_name, middle_name, last_name, suffix, role, student_number, faculty_number, program }) {
