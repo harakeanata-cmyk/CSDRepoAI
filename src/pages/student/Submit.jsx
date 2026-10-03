@@ -55,6 +55,7 @@ export default function Submit() {
   const [files, setFiles] = useState({ manuscript: null, sourceCode: null, ieee: null, acm: null, apa: null });
   const [detachedFiles, setDetachedFiles] = useState({});
   const [manuscriptText, setManuscriptText] = useState("");
+  const [manuscriptSource, setManuscriptSource] = useState("digital");
   const [status, setStatus] = useState("idle"); // idle | submitting | done | error
   const [errorMsg, setErrorMsg] = useState("");
   const [related, setRelated] = useState([]);
@@ -97,6 +98,7 @@ export default function Submit() {
       setFiles(draft?.files || { manuscript: null, sourceCode: null, ieee: null, acm: null, apa: null });
       setDetachedFiles(draft?.detachedFiles || {});
       setManuscriptText(draft?.manuscriptText || "");
+      setManuscriptSource(draft?.manuscriptSource === "ocr_scanned" ? "ocr_scanned" : "digital");
       setStatus(draft?.status || "idle");
       setErrorMsg(draft?.errorMsg || "");
       setSuggestions(draft?.suggestions || null);
@@ -131,6 +133,7 @@ export default function Submit() {
       files,
       detachedFiles,
       manuscriptText,
+      manuscriptSource,
       status,
       errorMsg,
       suggestions,
@@ -153,7 +156,7 @@ export default function Submit() {
         setDraftSaveStatus(result.conflict ? "conflict" : result.persistent ? (result.saved ? "saved" : "restored") : "unavailable");
     });
   }, [
-    user?.id, draftStateOwner, hasUnsavedSubmission, form, sdgTags, files, detachedFiles, manuscriptText,
+    user?.id, draftStateOwner, hasUnsavedSubmission, form, sdgTags, files, detachedFiles, manuscriptText, manuscriptSource,
     status, errorMsg, suggestions, documentAnalysis, documentChecks, fileErrors, typeConfirmations,
   ]);
 
@@ -237,12 +240,14 @@ export default function Submit() {
       setDocumentChecks((current) => { const next = { ...current }; delete next[slot]; return next; });
       if (slot === "manuscript") {
         setManuscriptText("");
+        setManuscriptSource("digital");
         setDocumentAnalysis({ status: "idle", message: "" });
       }
       return;
     }
 
     const expectedType = getExpectedDocumentType(slot);
+    if (slot === "manuscript") setManuscriptSource("digital");
     setTypeConfirmations((current) => ({ ...current, [slot]: false }));
     if (slot === "sourceCode") {
       setDocumentChecks((current) => ({ ...current, [slot]: { status: "valid", expectedType } }));
@@ -259,6 +264,7 @@ export default function Submit() {
       if (slot !== "manuscript") return;
 
       setManuscriptText(analysis.extractedText || "");
+      setManuscriptSource(analysis.manuscriptSource === "ocr_scanned" ? "ocr_scanned" : "digital");
       setForm((current) => ({
         ...current,
         title: sanitizeResearchTitle(analysis.title) || current.title,
@@ -269,12 +275,18 @@ export default function Submit() {
       }));
       setSdgTags((current) => [...new Set([...current, ...analysis.sdgTags])]);
       setSuggestions(analysis);
-      setDocumentAnalysis({ status: "done", message: `AI-assisted metadata generated: ${analysis.category}.` });
+      setDocumentAnalysis({
+        status: "done",
+        message: analysis.manuscriptSource === "ocr_scanned"
+          ? `Scanned PDF detected and OCR text extracted. This submission will be filed as OCR Scanned.`
+          : `AI-assisted metadata generated: ${analysis.category}.`,
+      });
     } catch (error) {
       if (analysisIds.current[slot] !== analysisId) return;
       setDocumentChecks((current) => ({ ...current, [slot]: { type: "Unknown / Cannot Determine", confidence: 0.45, status: "done", expectedType } }));
       if (slot === "manuscript") {
         setManuscriptText("");
+        setManuscriptSource("digital");
         setDocumentAnalysis({ status: "error", message: `Could not analyze this document automatically. You can enter the metadata manually. ${error.message}` });
       }
     }
@@ -312,6 +324,7 @@ export default function Submit() {
     setFiles({ manuscript: null, sourceCode: null, ieee: null, acm: null, apa: null });
     setDetachedFiles({});
     setManuscriptText("");
+    setManuscriptSource("digital");
     setStatus("idle");
     setErrorMsg("");
     setRelated([]);
@@ -382,6 +395,7 @@ export default function Submit() {
         category: suggestions?.category || "Computer Studies",
         manuscriptFile: files.manuscript,
         manuscriptText,
+        manuscriptSource,
         confirmDocumentTypeMismatch: Boolean(typeConfirmations.manuscript),
         sourceCodeFile: files.sourceCode,
         ieeeFile: files.ieee,
@@ -690,6 +704,20 @@ export default function Submit() {
                   onChange={(file) => handleFileChange("manuscript", file)}
                   hint="Full research paper, PDF or DOCX. Leave this empty to attach an IEEE version to an existing title."
                 />
+              </Field>
+              <Field label="Research record type">
+                <select
+                  className="input"
+                  value={manuscriptSource}
+                  onChange={(event) => setManuscriptSource(event.target.value)}
+                  aria-label="Research record type"
+                >
+                  <option value="digital">Digital research</option>
+                  <option value="ocr_scanned">OCR scanned paper</option>
+                </select>
+                <small style={{ display: "block", color: "var(--ink-500)", marginTop: 5 }}>
+                  Scanned PDFs are detected automatically. Confirm the type here, especially for PDFs with an OCR text layer or scanned pages inside a DOCX.
+                </small>
               </Field>
               <Field label="Source code (zip)">
                 <Dropzone

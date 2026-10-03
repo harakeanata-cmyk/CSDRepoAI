@@ -196,7 +196,7 @@ export async function analyzeResearchDocumentWithAI(file) {
   if (!file) return null;
 
   const source = await readResearchDocument(file);
-  const { documentText, extracted, abstract } = source;
+  const { documentText, extracted, abstract, source: manuscriptSource } = source;
 
   if (!GENKIT_EXTRACTION_URL) {
     logMetadataDebug("AI extraction unavailable; using local fallback", { reason: "endpoint not configured" });
@@ -238,14 +238,16 @@ export async function analyzeResearchDocumentWithAI(file) {
     sdgTags: aiSuggestions.sdgTags,
     sdgNames: aiSuggestions.sdgNames,
     extractedText: documentText,
+    manuscriptSource,
     sourceTextLength: documentText.length,
   };
 }
 
 async function readResearchDocument(file) {
-  const documentText = normalizeThesisBoilerplate(
-    isDocx(file) ? await extractDocxText(file) : await extractPdfText(file)
-  );
+  const extractedDocument = isDocx(file)
+    ? { text: await extractDocxText(file), manuscriptSource: "digital" }
+    : await extractPdfText(file);
+  const documentText = normalizeThesisBoilerplate(extractedDocument.text);
   const extracted = extractDocumentFields(documentText);
   // Do not fabricate an abstract from the opening sentences of the body. If
   // the document has no identifiable abstract section, leave it for review.
@@ -259,10 +261,10 @@ async function readResearchDocument(file) {
     abstractLength: abstract.length,
     keywords: Boolean(extracted.keywords),
   });
-  return { documentText, extracted, abstract };
+  return { documentText, extracted, abstract, source: extractedDocument.manuscriptSource };
 }
 
-async function buildLocalAnalysis(file, { documentText, extracted, abstract }) {
+async function buildLocalAnalysis(file, { documentText, extracted, abstract, source: manuscriptSource }) {
   const metadata = await maybeAnalyzeWithGenkit({
     title: extracted.title,
     abstract,
@@ -288,6 +290,7 @@ async function buildLocalAnalysis(file, { documentText, extracted, abstract }) {
     sdgTags: metadata.sdgTags,
     sdgNames: metadata.sdgNames,
     extractedText: documentText,
+    manuscriptSource,
     sourceTextLength: documentText.length,
   };
 }
@@ -415,17 +418,19 @@ async function extractPdfText(file) {
 
   const text = pages.join("\n\n").trim();
   const textLayer = text.replace(/--- Page \d+ ---/g, "").trim();
-  if (textLayer.length >= 120) return text;
+  if (textLayer.length >= 120) return { text, manuscriptSource: "digital" };
 
   // Scanned PDFs have no selectable text layer. Reuse the app's existing
   // PaddleOCR flow to recover the title page and common front-matter sections.
   try {
     const { extractScannedPdfText } = await import("./ocr.js");
     const scannedText = await extractScannedPdfText(file);
-    return scannedText.trim() ? scannedText : text;
+    return scannedText.trim()
+      ? { text: scannedText, manuscriptSource: "ocr_scanned" }
+      : { text, manuscriptSource: "digital" };
   } catch (error) {
     console.warn("Scanned PDF OCR fallback failed; using available PDF text.", error);
-    return text;
+    return { text, manuscriptSource: "digital" };
   }
 }
 

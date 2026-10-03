@@ -75,6 +75,7 @@ function draftSnapshot(userId, draft, now, previous) {
     files,
     detachedFiles: fileMetadataBySlot,
     manuscriptText: draft.manuscriptText || "",
+    manuscriptSource: draft.manuscriptSource === "ocr_scanned" ? "ocr_scanned" : "digital",
     documentAnalysis: draft.documentAnalysis || { status: "idle", message: "" },
     documentChecks: draft.documentChecks || {},
     fileErrors: draft.fileErrors || {},
