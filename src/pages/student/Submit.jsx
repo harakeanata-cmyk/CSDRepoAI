@@ -67,6 +67,7 @@ export default function Submit() {
   const analysisIds = useRef({});
   const [submittedPaper, setSubmittedPaper] = useState(null);
   const [academicYears, setAcademicYears] = useState([]);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
 
   const defaultForm = buildDefaultForm(profile);
   const hasFormChanges = Object.entries(form).some(([field, value]) => (
@@ -317,6 +318,11 @@ export default function Submit() {
   }
 
   function handleClearForm() {
+    if (status === "submitting") return;
+    setClearConfirmOpen(true);
+  }
+
+  function confirmClearForm() {
     if (user?.id) void clearSubmissionDraft(user.id);
     draftSaveSequence.current += 1;
     draftRevision.current = null;
@@ -336,6 +342,7 @@ export default function Submit() {
     setFileErrors({});
     setTypeConfirmations({});
     setSubmittedPaper(null);
+    setClearConfirmOpen(false);
   }
 
   function getSuggestedKeywords() {
@@ -785,19 +792,46 @@ export default function Submit() {
                 </div>
               )}
               {errorMsg ? (
-                <span className="auth-error" style={{ margin: 0 }}>{errorMsg}</span>
+                <div className="auth-error" role="alert" style={{ margin: 0 }}>
+                  <div>{errorMsg}</div>
+                  {errorMsg.includes("manuscript file has already been submitted") && (
+                    <button type="button" className="btn btn-outline btn-sm" style={{ marginTop: 8 }} onClick={handleClearForm}>
+                      Clear this submission
+                    </button>
+                  )}
+                </div>
               ) : (
                 "Your adviser and the review committee will be notified once submitted."
               )}
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button type="button" className="btn btn-outline" onClick={handleClearForm} disabled={!hasUnsavedSubmission && status === "idle"}>Clear Form</button>
+              <button type="button" className="btn btn-outline" onClick={handleClearForm} disabled={status === "submitting" || (!hasUnsavedSubmission && status === "idle")}>Clear Form</button>
               <button type="submit" disabled={status === "submitting" || documentAnalysis.status === "analyzing"} className="btn btn-primary">
                 {status === "submitting" ? "Submitting..." : documentAnalysis.status === "analyzing" ? "Reading manuscript..." : "Submit Research"}
               </button>
             </div>
           </div>
         </form>
+
+        {clearConfirmOpen && (
+          <div
+            className="logout-dialog-backdrop"
+            role="presentation"
+            onMouseDown={(event) => { if (event.target === event.currentTarget) setClearConfirmOpen(false); }}
+          >
+            <div className="logout-dialog" role="alertdialog" aria-modal="true" aria-labelledby="clear-submission-title" aria-describedby="clear-submission-description">
+              <div className="logout-dialog-icon"><AlertTriangle size={18} /></div>
+              <div>
+                <h2 id="clear-submission-title">Are you sure you want to clear this submission?</h2>
+                <p id="clear-submission-description">This permanently clears the unsent form and its uploaded files from this device. It does not delete an existing research record.</p>
+              </div>
+              <div className="logout-dialog-actions">
+                <button type="button" className="btn btn-outline" onClick={() => setClearConfirmOpen(false)}>Cancel</button>
+                <button type="button" className="btn btn-danger" onClick={confirmClearForm}>Yes, clear submission</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16, position: "sticky", top: 24 }}>
           {related.length > 0 && (

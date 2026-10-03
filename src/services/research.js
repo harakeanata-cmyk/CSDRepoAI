@@ -84,7 +84,7 @@ async function assertManuscriptHashIsUnique(manuscriptSha256, excludePaperId = n
     throw error;
   }
   if (data) {
-    throw new Error("This manuscript file has already been submitted. Edit the existing rejected paper instead of uploading another copy.");
+    throw new Error("This manuscript file has already been submitted. Open My Submissions to edit your existing record, or contact your adviser if this is unexpected.");
   }
 
   return manuscriptSha256;
@@ -242,7 +242,7 @@ export async function submitResearch({
   if (error) {
     if (error.code === "23505") {
       if (error.constraint === "idx_research_active_manuscript_sha256") {
-        throw new Error("This manuscript file has already been submitted. Edit the existing rejected paper instead of uploading another copy.");
+        throw new Error("This manuscript file has already been submitted. Open My Submissions to edit your existing record, or contact your adviser if this is unexpected.");
       }
       if (error.constraint === "idx_research_unique_normalized_title") {
         throw new Error("Another non-rejected paper already uses this title. Review the existing paper or choose a distinct title.");
