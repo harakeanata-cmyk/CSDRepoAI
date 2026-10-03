@@ -98,7 +98,9 @@ export default function Submit() {
       setFiles(draft?.files || { manuscript: null, sourceCode: null, ieee: null, acm: null, apa: null });
       setDetachedFiles(draft?.detachedFiles || {});
       setManuscriptText(draft?.manuscriptText || "");
-      setManuscriptSource(draft?.manuscriptSource === "ocr_scanned" ? "ocr_scanned" : "digital");
+      // Older drafts may contain a manually selected record type. Restore the
+      // type from the automatic analysis result instead.
+      setManuscriptSource(draft?.documentAnalysis?.message?.startsWith("Scanned PDF detected.") ? "ocr_scanned" : "digital");
       setStatus(draft?.status || "idle");
       setErrorMsg(draft?.errorMsg || "");
       setSuggestions(draft?.suggestions || null);
@@ -681,7 +683,7 @@ export default function Submit() {
               </div>
               <div>
                 <div className="form-section-title">Files &amp; attachments</div>
-                <div className="form-section-hint">Manuscript is required; other files are optional · up to {MAX_RESEARCH_UPLOAD_SIZE_LABEL} per file</div>
+                <div className="form-section-hint">Manuscript is required; other files are optional · up to {MAX_RESEARCH_UPLOAD_SIZE_LABEL} per file. Scanned PDFs are automatically filed as OCR Scanned; other manuscripts are Digital Research.</div>
               </div>
             </div>
 
@@ -704,20 +706,6 @@ export default function Submit() {
                   onChange={(file) => handleFileChange("manuscript", file)}
                   hint="Full research paper, PDF or DOCX. Leave this empty to attach an IEEE version to an existing title."
                 />
-              </Field>
-              <Field label="Research record type">
-                <select
-                  className="input"
-                  value={manuscriptSource}
-                  onChange={(event) => setManuscriptSource(event.target.value)}
-                  aria-label="Research record type"
-                >
-                  <option value="digital">Digital research</option>
-                  <option value="ocr_scanned">OCR scanned paper</option>
-                </select>
-                <small style={{ display: "block", color: "var(--ink-500)", marginTop: 5 }}>
-                  Scanned PDFs are detected automatically. Confirm the type here, especially for PDFs with an OCR text layer or scanned pages inside a DOCX.
-                </small>
               </Field>
               <Field label="Source code (zip)">
                 <Dropzone
