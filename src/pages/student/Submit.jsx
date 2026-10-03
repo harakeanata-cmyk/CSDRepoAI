@@ -45,6 +45,7 @@ export default function Submit() {
   const navigate = useNavigate();
   const draftLoadSequence = useRef(0);
   const draftSaveSequence = useRef(0);
+  const draftSaveQueue = useRef(Promise.resolve());
   const draftRevision = useRef(null);
   const skipDraftSaveOnce = useRef(false);
   const [draftStateOwner, setDraftStateOwner] = useState(null);
@@ -124,8 +125,7 @@ export default function Submit() {
     }
     setDraftSaveStatus("saving");
     const saveSequence = ++draftSaveSequence.current;
-    const timeoutId = setTimeout(() => {
-      saveSubmissionDraft(user.id, {
+    const snapshot = {
       form,
       sdgTags,
       files,
@@ -138,13 +138,20 @@ export default function Submit() {
       documentChecks,
       fileErrors,
       typeConfirmations,
-      }, Date.now(), draftRevision.current).then((result) => {
-        if (saveSequence !== draftSaveSequence.current || user?.id !== result?.userId) return;
-        if (result.saved) draftRevision.current = result.revision;
+    };
+    // Persist each committed form state immediately. A debounce timer is cleared
+    // when this route unmounts, which can lose an upload on a quick navigation.
+    // Serialize writes so successive React updates use the latest revision.
+    draftSaveQueue.current = draftSaveQueue.current.catch(() => {}).then(async () => {
+      if (user?.id !== draftStateOwner) return;
+      const result = await saveSubmissionDraft(user.id, snapshot, Date.now(), draftRevision.current);
+      if (result.saved) draftRevision.current = result.revision;
+      if (
+        saveSequence !== draftSaveSequence.current
+        || user?.id !== result?.userId
+      ) return;
         setDraftSaveStatus(result.conflict ? "conflict" : result.persistent ? (result.saved ? "saved" : "restored") : "unavailable");
-      });
-    }, 450);
-    return () => clearTimeout(timeoutId);
+    });
   }, [
     user?.id, draftStateOwner, hasUnsavedSubmission, form, sdgTags, files, detachedFiles, manuscriptText,
     status, errorMsg, suggestions, documentAnalysis, documentChecks, fileErrors, typeConfirmations,
