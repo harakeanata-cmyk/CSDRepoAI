@@ -30,6 +30,7 @@ import { useUnloadWarning } from "../../lib/useUnloadWarning";
 import { SDG_LIST } from "../../lib/sdgList";
 import { validateOcrResearchRecord } from "../../lib/ocrValidation";
 import { PROGRAM_OPTIONS } from "../../lib/programs";
+import { clearOcrDraft, loadOcrDraft, saveOcrDraft } from "../../lib/ocrDraftStore";
 
 const STEPS = [
   { key: "upload", label: "Upload" },
@@ -79,6 +80,8 @@ export default function OCRScan() {
   const scanAbortControllerRef = useRef(null);
   const pageTimingRef = useRef({ page: null, startedAt: 0, durations: [] });
   const saveTimingRef = useRef({ lastPageAt: 0, pageDurations: [] });
+  const [ocrDraftLoadedFor, setOcrDraftLoadedFor] = useState(null);
+  const ocrDraftLoadSequence = useRef(0);
 
   useUnloadWarning(files.length > 0 && step !== "done");
 
@@ -87,6 +90,65 @@ export default function OCRScan() {
       .then((items) => setAcademicYears(items.map((year) => year.label)))
       .catch(() => setAcademicYears([]));
   }, []);
+
+  useEffect(() => {
+    const userId = user?.id;
+    const sequence = ++ocrDraftLoadSequence.current;
+    setOcrDraftLoadedFor(null);
+    if (!userId) return undefined;
+
+    loadOcrDraft(userId).then((draft) => {
+      if (sequence !== ocrDraftLoadSequence.current) return;
+      if (draft?.files?.length) {
+        setFiles(draft.files);
+        setPreviews(draft.files.map((file) => URL.createObjectURL(file)));
+        setScannedPageTexts(draft.scannedPageTexts || draft.files.map(() => null));
+        setOcrText(draft.ocrText || "");
+        setMeta((current) => ({ ...current, ...(draft.meta || {}) }));
+        setSdgTags(draft.sdgTags || []);
+        setAiStatus(draft.aiStatus || "idle");
+        setScanNotice(draft.scanNotice || "Saved OCR work restored. Continue reviewing the recognized pages or run OCR for any remaining pages.");
+        setFormatReview(draft.formatReview || { status: "idle", message: "" });
+        const completed = (draft.scannedPageTexts || []).filter((text) => text != null).length;
+        setTotalPages(draft.files.length);
+        setDonePages(completed);
+        setStep(draft.step === "done" ? "done" : completed || draft.ocrText ? "scanned" : "idle");
+      }
+      setOcrDraftLoadedFor(userId);
+    }).catch(() => {
+      // If local storage cannot be read, leave it untouched; treating a read
+      // failure as an empty draft could erase a recoverable upload.
+      if (sequence === ocrDraftLoadSequence.current) {
+        setUploadError("Saved OCR work could not be opened in this browser. Your local draft was left unchanged.");
+      }
+    });
+
+    return () => {
+      if (ocrDraftLoadSequence.current === sequence) ocrDraftLoadSequence.current += 1;
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
+    const userId = user?.id;
+    if (!userId || ocrDraftLoadedFor !== userId) return;
+    if (step === "done" || files.length === 0) {
+      void clearOcrDraft(userId).catch(() => {});
+      return;
+    }
+    // Persist source files and completed page text as work changes. Treat an
+    // interrupted scan as idle/scanned when restoring; never claim it is running.
+    void saveOcrDraft(userId, {
+      files,
+      scannedPageTexts,
+      ocrText,
+      meta,
+      sdgTags,
+      aiStatus,
+      scanNotice,
+      formatReview,
+      step: step === "scanning" || step === "saving" ? (ocrText ? "scanned" : "idle") : step,
+    }).catch(() => {});
+  }, [user?.id, ocrDraftLoadedFor, files, scannedPageTexts, ocrText, meta, sdgTags, aiStatus, scanNotice, formatReview, step]);
 
   const activeIndex = stepIndexFor(step);
 
