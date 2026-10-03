@@ -48,7 +48,7 @@ function stepIndexFor(step) {
   return 0;
 }
 
-export default function OCRScan() {
+export default function OCRScan({ isActive = true }) {
   const { user } = useAuth();
   const [files, setFiles] = useState([]);
   const [previews, setPreviews] = useState([]);
@@ -79,12 +79,29 @@ export default function OCRScan() {
   const [keywordSuggestionStatus, setKeywordSuggestionStatus] = useState("idle");
   const fileInputRef = useRef(null);
   const scanAbortControllerRef = useRef(null);
+  const scanPauseReasonRef = useRef("");
   const pageTimingRef = useRef({ page: null, startedAt: 0, durations: [] });
   const saveTimingRef = useRef({ lastPageAt: 0, pageDurations: [] });
   const [ocrDraftLoadedFor, setOcrDraftLoadedFor] = useState(null);
   const ocrDraftLoadSequence = useRef(0);
 
   useUnloadWarning(files.length > 0 && step !== "done");
+
+  useEffect(() => {
+    const pauseScan = (reason) => {
+      if (!scanAbortControllerRef.current || scanAbortControllerRef.current.signal.aborted) return;
+      scanPauseReasonRef.current = reason;
+      scanAbortControllerRef.current.abort();
+      setIsStopping(true);
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") pauseScan("browser tab");
+    };
+
+    if (!isActive) pauseScan("another page");
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [isActive]);
 
   useEffect(() => {
     getAcademicYears({ activeOnly: true })
@@ -349,7 +366,9 @@ function handleFile(e) {
       if (cancelled) {
         setStep("idle");
         setFormatReview({ status: "idle", message: "" });
-        setScanNotice(`Scan stopped. ${completedBeforeScan + pages.length} of ${files.length} pages are recognized. Select Run OCR Scan to continue.`);
+        const pauseReason = scanPauseReasonRef.current;
+        scanPauseReasonRef.current = "";
+        setScanNotice(`Scan paused${pauseReason ? ` when you left the ${pauseReason}` : ""}. ${completedBeforeScan + pages.length} of ${files.length} pages are recognized. Select Run OCR Scan to continue.`);
         return;
       }
 
@@ -411,7 +430,13 @@ function handleFile(e) {
       setIsStopping(false);
       setStep("idle");
       setFormatReview({ status: "idle", message: "" });
-      setUploadError(error.message || "OCR could not read the selected PDF, DOCX, or image document. Please try again.");
+      if (controller.signal.aborted) {
+        const pauseReason = scanPauseReasonRef.current;
+        scanPauseReasonRef.current = "";
+        setScanNotice(`Scan paused${pauseReason ? ` when you left the ${pauseReason}` : ""}. ${completedBeforeScan} of ${files.length} pages are recognized. Select Run OCR Scan to continue.`);
+      } else {
+        setUploadError(error.message || "OCR could not read the selected PDF, DOCX, or image document. Please try again.");
+      }
     }
   }
 

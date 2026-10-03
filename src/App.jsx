@@ -78,7 +78,7 @@ function PersistentOCRScan() {
 
   return (
     <div style={{ display: isActive && !checking && verifiedLocation === `${location.key}:${location.pathname}` ? "block" : "none" }}>
-      <OCRScan />
+      <OCRScan isActive={isActive} />
     </div>
   );
 }
