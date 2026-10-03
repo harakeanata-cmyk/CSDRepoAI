@@ -620,7 +620,7 @@ function handleFile(e) {
             </>
           )}
 
-          {uploadError && (
+          {uploadError && !uploadError.includes("very similar content") && (
             <p className="auth-error" role="alert" style={{ marginTop: 12 }}>
               {uploadError}
             </p>
@@ -975,6 +975,11 @@ function handleFile(e) {
                     : `Preparing page ${saveProgress.completed} of ${saveProgress.total}...`
               : <>Save to Repository <ArrowRight size={14} /></>}
           </button>
+          {uploadError.includes("very similar content") && (
+            <p className="auth-error" role="alert" aria-live="polite" style={{ margin: "0 0 8px" }}>
+              {uploadError}
+            </p>
+          )}
           {step === "saving" && saveProgress.total > 0 && (
             <>
               <p role="status" aria-live="polite" style={{ color: "var(--ink-600)", fontSize: 12, margin: "0 0 8px" }}>
