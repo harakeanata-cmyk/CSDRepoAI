@@ -1,6 +1,6 @@
 import { SDG_LIST } from "../lib/sdgList.js";
 import { toGenkitEndpoint } from "../lib/genkitUrl.js";
-import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
+import { getDocument, GlobalWorkerOptions, OPS } from "pdfjs-dist";
 import mammoth from "mammoth/mammoth.browser.js";
 
 const viteEnv = typeof import.meta !== "undefined" && import.meta.env ? import.meta.env : {};
@@ -408,17 +408,23 @@ async function extractPdfText(file) {
   const pdf = await getDocument({ data }).promise;
   const pages = [];
   const pageLimit = pdf.numPages;
+  const sampleLimit = Math.min(pageLimit, 8);
+  let fullPageImageCount = 0;
 
   for (let pageNumber = 1; pageNumber <= pageLimit; pageNumber += 1) {
     const page = await pdf.getPage(pageNumber);
     const content = await page.getTextContent();
     const pageText = joinPdfTextItems(content.items, content.styles);
     pages.push(pageNumber === 1 ? pageText : `--- Page ${pageNumber} ---\n${pageText}`);
+    if (pageNumber <= sampleLimit && await hasFullPageRasterImage(page)) fullPageImageCount += 1;
   }
 
   const text = pages.join("\n\n").trim();
   const textLayer = text.replace(/--- Page \d+ ---/g, "").trim();
-  if (textLayer.length >= 120) return { text, manuscriptSource: "digital" };
+  const imageBasedScan = fullPageImageCount >= Math.max(2, Math.ceil(sampleLimit * 0.6));
+  if (textLayer.length >= 120) {
+    return { text, manuscriptSource: imageBasedScan ? "ocr_scanned" : "digital" };
+  }
 
   // Scanned PDFs have no selectable text layer. Reuse the app's existing
   // PaddleOCR flow to recover the title page and common front-matter sections.
@@ -432,6 +438,39 @@ async function extractPdfText(file) {
     console.warn("Scanned PDF OCR fallback failed; using available PDF text.", error);
     return { text, manuscriptSource: "digital" };
   }
+}
+
+async function hasFullPageRasterImage(page) {
+  const pageWidth = Math.abs(page.view[2] - page.view[0]);
+  const pageHeight = Math.abs(page.view[3] - page.view[1]);
+  if (!pageWidth || !pageHeight) return false;
+
+  const operators = await page.getOperatorList();
+  const imageOperators = new Set([
+    OPS.paintImageXObject,
+    OPS.paintImageMaskXObject,
+    OPS.paintInlineImageXObject,
+    OPS.paintInlineImageXObjectGroup,
+  ]);
+  for (let index = 0; index < operators.fnArray.length; index += 1) {
+    if (!imageOperators.has(operators.fnArray[index])) continue;
+    const imageArg = operators.argsArray[index]?.[0];
+    let image = imageArg;
+    if (typeof imageArg === "string" && page.objs?.has(imageArg)) {
+      image = page.objs.get(imageArg);
+    }
+    const width = Number(image?.width);
+    const height = Number(image?.height);
+    if (!width || !height) continue;
+
+    const aspectRatio = width / height;
+    const pageAspectRatio = pageWidth / pageHeight;
+    const matchesPageShape = Math.abs(aspectRatio - pageAspectRatio) <= 0.15
+      || Math.abs((1 / aspectRatio) - pageAspectRatio) <= 0.15;
+    const coversPageScale = Math.min(width / pageWidth, height / pageHeight) >= 0.75;
+    if (matchesPageShape && coversPageScale) return true;
+  }
+  return false;
 }
 
 async function extractDocxText(file) {

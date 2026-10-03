@@ -278,7 +278,7 @@ export default function Submit() {
       setDocumentAnalysis({
         status: "done",
         message: analysis.manuscriptSource === "ocr_scanned"
-          ? `Scanned PDF detected and OCR text extracted. This submission will be filed as OCR Scanned.`
+          ? `Scanned PDF detected. This submission will be filed as OCR Scanned.`
           : `AI-assisted metadata generated: ${analysis.category}.`,
       });
     } catch (error) {
