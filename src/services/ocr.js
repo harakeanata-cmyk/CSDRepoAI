@@ -17,6 +17,36 @@ import { validateOcrResearchRecord } from "../lib/ocrValidation.js";
  */
 let paddleOcrPromise;
 let pdfJsPromise;
+let localOcrQueue = Promise.resolve();
+
+async function withOcrRuntimeLock(task, signal) {
+  const run = () => {
+    if (signal?.aborted) throw new DOMException("OCR was cancelled.", "AbortError");
+    return task();
+  };
+
+  // OCR runs in separate workers in separate tabs, but those workers still
+  // compete for the same browser's WASM/GPU resources. Serialize inference
+  // across same-origin tabs to avoid ONNX Runtime's "Session mismatch" error.
+  if (globalThis.navigator?.locks?.request) {
+    return navigator.locks.request(
+      "csdrepoai-paddleocr-runtime",
+      { mode: "exclusive", ...(signal ? { signal } : {}) },
+      run,
+    );
+  }
+
+  // Older browsers at least serialize jobs within this page context.
+  const previous = localOcrQueue.catch(() => {});
+  let release;
+  localOcrQueue = new Promise((resolve) => { release = resolve; });
+  await previous;
+  try {
+    return await run();
+  } finally {
+    release();
+  }
+}
 
 function getPaddleOcr() {
   if (!paddleOcrPromise) {
@@ -75,13 +105,15 @@ function getRecognitionConfidence(result) {
 }
 
 export async function scanDocument(imageFileOrUrl, onProgress) {
-  const ocr = await getPaddleOcr();
-  onProgress?.(0.05);
-  const preparedImage = await prepareOcrImage(imageFileOrUrl);
-  const [result] = await ocr.predict(preparedImage);
-  onProgress?.(1);
-  const confidence = getRecognitionConfidence(result) * 100;
-  return { text: getRecognizedText(result), confidence };
+  return withOcrRuntimeLock(async () => {
+    const ocr = await getPaddleOcr();
+    onProgress?.(0.05);
+    const preparedImage = await prepareOcrImage(imageFileOrUrl);
+    const [result] = await ocr.predict(preparedImage);
+    onProgress?.(1);
+    const confidence = getRecognitionConfidence(result) * 100;
+    return { text: getRecognizedText(result), confidence };
+  });
 }
 
 export async function expandUploadedFiles(files) {
@@ -231,39 +263,41 @@ async function normalizeFilesForArchive(files) {
 export { stripPageMarkers } from "./ocrTextUtils.js";
 
 export async function scanDocuments(imageFiles, onProgress, { signal } = {}) {
-  const pages = [];
-  const totalPages = imageFiles.length;
-  const needsImageOcr = imageFiles.some((file) => !isDocxFile(file));
-  if (needsImageOcr) onProgress?.(0.02, 1, totalPages);
-  const ocr = needsImageOcr ? await getPaddleOcr() : null;
+  return withOcrRuntimeLock(async () => {
+    const pages = [];
+    const totalPages = imageFiles.length;
+    const needsImageOcr = imageFiles.some((file) => !isDocxFile(file));
+    if (needsImageOcr) onProgress?.(0.02, 1, totalPages);
+    const ocr = needsImageOcr ? await getPaddleOcr() : null;
 
-  for (let index = 0; index < imageFiles.length; index += 1) {
-    if (signal?.aborted) break;
-    const file = imageFiles[index];
-    if (isDocxFile(file)) {
-      const { text, metadataText } = await extractDocxTextWithFormatting(file);
-      pages.push({ pageNumber: index + 1, text, metadataText, confidence: null });
+    for (let index = 0; index < imageFiles.length; index += 1) {
+      if (signal?.aborted) break;
+      const file = imageFiles[index];
+      if (isDocxFile(file)) {
+        const { text, metadataText } = await extractDocxTextWithFormatting(file);
+        pages.push({ pageNumber: index + 1, text, metadataText, confidence: null });
+        onProgress?.(1, index + 1, totalPages);
+        continue;
+      }
+
+      onProgress?.(0.05, index + 1, totalPages);
+      const preparedImage = await prepareOcrImage(file);
+      if (signal?.aborted) break;
+      const [result] = await ocr.predict(preparedImage);
+      pages.push({
+        pageNumber: index + 1,
+        text: getRecognizedText(result),
+        confidence: getRecognitionConfidence(result),
+      });
       onProgress?.(1, index + 1, totalPages);
-      continue;
     }
 
-    onProgress?.(0.05, index + 1, totalPages);
-    const preparedImage = await prepareOcrImage(file);
-    if (signal?.aborted) break;
-    const [result] = await ocr.predict(preparedImage);
-    pages.push({
-      pageNumber: index + 1,
-      text: getRecognizedText(result),
-      confidence: getRecognitionConfidence(result),
-    });
-    onProgress?.(1, index + 1, totalPages);
-  }
+    const text = pages
+      .map((page) => `--- Page ${page.pageNumber} ---\n${page.text}`)
+      .join("\n\n");
 
-  const text = pages
-    .map((page) => `--- Page ${page.pageNumber} ---\n${page.text}`)
-    .join("\n\n");
-
-  return { text, pages, cancelled: Boolean(signal?.aborted) };
+    return { text, pages, cancelled: Boolean(signal?.aborted) };
+  }, signal);
 }
 
 function cleanOcrText(rawText) {
