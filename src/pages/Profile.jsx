@@ -6,6 +6,7 @@ import { validatePassword } from "../lib/authValidation";
 import { updateProfile } from "../services/users";
 import { validatePersonNameFields } from "../lib/nameValidation";
 import { PROGRAM_OPTIONS } from "../lib/programs";
+import { LockKeyhole } from "lucide-react";
 
 export default function Profile() {
   const { profile, user, updatePassword } = useAuth();
@@ -169,7 +170,7 @@ export default function Profile() {
 
         <div className="card card-pad profile-card">
           <div className="profile-card-heading">
-            <span className="profile-card-kicker">Security</span>
+            <span className="profile-card-kicker profile-security-kicker"><LockKeyhole size={13} aria-hidden="true" /> Security</span>
             <h2>Change password</h2>
             <p>Use a strong password to keep your account secure.</p>
           </div>
