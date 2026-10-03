@@ -100,8 +100,8 @@ create table if not exists research_papers (
   ieee_paper_url text,
   acm_paper_url text,
   apa_paper_url text,
-  status text not null default 'pending'  -- pending | under_review | student_editing | approved | rejected
-    check (status in ('pending', 'under_review', 'student_editing', 'approved', 'rejected')),
+  status text not null default 'pending'  -- pending | under_review | student_editing | approved | rejected | withdrawn
+    check (status in ('pending', 'under_review', 'student_editing', 'approved', 'rejected', 'withdrawn')),
   review_notes text,
   reviewed_by uuid references profiles(id),
   reviewed_at timestamptz,
@@ -144,7 +144,7 @@ create trigger research_papers_guard_activation
 
 alter table research_papers drop constraint if exists research_papers_status_check;
 alter table research_papers add constraint research_papers_status_check
-  check (status in ('pending', 'under_review', 'student_editing', 'approved', 'rejected'));
+  check (status in ('pending', 'under_review', 'student_editing', 'approved', 'rejected', 'withdrawn'));
 
 create index if not exists idx_research_status on research_papers(status);
 create index if not exists idx_research_submitted_by on research_papers(submitted_by);
@@ -162,7 +162,7 @@ drop index if exists idx_research_unique_normalized_title;
 create unique index if not exists idx_research_active_manuscript_sha256
   on research_papers (manuscript_sha256)
   where manuscript_sha256 is not null
-    and status not in ('rejected', 'student_editing');
+    and status not in ('rejected', 'student_editing', 'withdrawn');
 
 -- Full-text search support for the AI-Assisted Search module
 alter table research_papers add column if not exists search_vector tsvector
@@ -236,6 +236,55 @@ create table if not exists submission_logs (
   detail jsonb,
   created_at timestamptz default now()
 );
+
+create or replace function public.withdraw_my_research_submission(p_paper_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_status text;
+begin
+  if not exists (
+    select 1 from public.profiles
+    where id = auth.uid() and role = 'student'
+  ) then
+    raise exception 'Only students can clear their own submissions.'
+      using errcode = '42501';
+  end if;
+
+  select status into current_status
+  from public.research_papers
+  where id = p_paper_id and submitted_by = auth.uid()
+  for update;
+
+  if not found then
+    raise exception 'Submission not found or you do not have permission to clear it.'
+      using errcode = '42501';
+  end if;
+
+  if current_status not in ('pending', 'under_review', 'student_editing', 'rejected') then
+    raise exception 'Only submissions that have not been approved can be cleared.'
+      using errcode = '55000';
+  end if;
+
+  update public.research_papers
+  set status = 'withdrawn', updated_at = now()
+  where id = p_paper_id;
+
+  insert into public.submission_logs (paper_id, action, actor_id, detail)
+  values (
+    p_paper_id,
+    'student_withdrew',
+    auth.uid(),
+    jsonb_build_object('previous_status', current_status)
+  );
+end;
+$$;
+
+revoke all on function public.withdraw_my_research_submission(uuid) from public;
+grant execute on function public.withdraw_my_research_submission(uuid) to authenticated;
 
 -- Safe repository activity shown to every signed-in user's notification bell.
 create table if not exists public_notifications (

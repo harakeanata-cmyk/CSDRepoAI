@@ -84,7 +84,7 @@ async function assertManuscriptHashIsUnique(manuscriptSha256, excludePaperId = n
     throw error;
   }
   if (data) {
-    throw new Error("This manuscript file has already been submitted. Open My Submissions to edit your existing record, or contact your adviser if this is unexpected.");
+    throw new Error("This manuscript file has already been submitted. If it is your submission, open My Submissions and choose Clear submission before trying again. Contact your adviser if the existing record belongs to someone else.");
   }
 
   return manuscriptSha256;
@@ -242,7 +242,7 @@ export async function submitResearch({
   if (error) {
     if (error.code === "23505") {
       if (error.constraint === "idx_research_active_manuscript_sha256") {
-        throw new Error("This manuscript file has already been submitted. Open My Submissions to edit your existing record, or contact your adviser if this is unexpected.");
+        throw new Error("This manuscript file has already been submitted. If it is your submission, open My Submissions and choose Clear submission before trying again. Contact your adviser if the existing record belongs to someone else.");
       }
       if (error.constraint === "idx_research_unique_normalized_title") {
         throw new Error("Another non-rejected paper already uses this title. Review the existing paper or choose a distinct title.");
@@ -502,13 +502,16 @@ export async function getMySubmissions(userId) {
   const paperIds = data.map((paper) => paper.id);
   const { data: activity, error: activityError } = await supabase
     .from("submission_logs")
-    .select("id, paper_id, actor_id, detail, created_at")
+    .select("id, paper_id, actor_id, action, detail, created_at")
     .in("paper_id", paperIds)
-    .eq("action", "status_changed")
     .order("created_at", { ascending: false });
   if (activityError) throw activityError;
 
-  const reviewActivity = (activity || []).filter((entry) => ["approved", "rejected", "under_review"].includes(entry.detail?.status));
+  const reviewActivity = (activity || []).filter((entry) => (
+    entry.action === "student_withdrew"
+      ? true
+      : entry.action === "status_changed" && ["approved", "rejected", "under_review"].includes(entry.detail?.status)
+  ));
   const accountIds = [...new Set([
     ...data.map((paper) => paper.reviewed_by),
     ...reviewActivity.map((entry) => entry.actor_id),
@@ -529,7 +532,7 @@ export async function getMySubmissions(userId) {
     const entries = activityByPaperId.get(entry.paper_id) || [];
     entries.push({
       id: entry.id,
-      status: entry.detail.status,
+      status: entry.action === "student_withdrew" ? "withdrawn" : entry.detail.status,
       created_at: entry.created_at,
       actor: accountById.get(entry.actor_id) || null,
     });
@@ -591,6 +594,20 @@ export async function cancelResearchEditing({ paperId, userId }) {
   if (!data) throw new Error("This submission is no longer marked for editing.");
   notifyResearchDataChanged();
   return data;
+}
+
+/** Withdraw a student's own unapproved submission while preserving its history. */
+export async function withdrawResearchSubmission({ paperId }) {
+  const { error } = await supabase.rpc("withdraw_my_research_submission", {
+    p_paper_id: paperId,
+  });
+  if (error) {
+    if (error.code === "42883" || error.code === "PGRST202") {
+      throw new Error("Submission clearing is not enabled in the database yet. Apply the latest Supabase migration, then try again.");
+    }
+    throw error;
+  }
+  notifyResearchDataChanged();
 }
 
 /** Research Archive Module: browse approved papers */

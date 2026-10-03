@@ -66,11 +66,13 @@ const BADGE_MAP = {
   under_review: "info",
   approved: "success",
   rejected: "danger",
+  withdrawn: "neutral",
 };
 
 export function StatusBadge({ status }) {
   const kind = BADGE_MAP[status] || "neutral";
-  return <span className={`badge badge-${kind}`}>{status.replace("_", " ")}</span>;
+  const label = status === "withdrawn" ? "Withdrawn" : status.replace("_", " ");
+  return <span className={`badge badge-${kind}`}>{label}</span>;
 }
 
 export function Field({ label, children }) {

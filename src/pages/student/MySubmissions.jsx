@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { FileText, FolderOpen, Pencil, X } from "lucide-react";
+import { FileText, FolderOpen, Pencil, Trash2, X } from "lucide-react";
 import Layout from "../../components/Layout";
 import { PageHeader, StatusBadge, EmptyState, Field, Button } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
-import { beginResearchEditing, cancelResearchEditing, getMySubmissions, updateResearchSubmission } from "../../services/research";
+import { beginResearchEditing, cancelResearchEditing, getMySubmissions, updateResearchSubmission, withdrawResearchSubmission } from "../../services/research";
 import ResearchFileActions from "../../components/ResearchFileActions";
 import { analyzeResearchDocumentWithAI } from "../../services/metadataSuggestions";
 import { SDG_LIST } from "../../lib/sdgList";
@@ -35,6 +35,8 @@ export default function MySubmissions() {
   const [editError, setEditError] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [confirmEditSave, setConfirmEditSave] = useState(false);
+  const [clearTarget, setClearTarget] = useState(null);
+  const [clearingId, setClearingId] = useState(null);
 
   useEffect(() => {
     if (!user) return;
@@ -46,7 +48,33 @@ export default function MySubmissions() {
     [submissions, statusFilter]
   );
 
-  const statuses = ["all", "pending", "under_review", "student_editing", "approved", "rejected"];
+  const statuses = ["all", "pending", "under_review", "student_editing", "approved", "rejected", "withdrawn"];
+
+  async function confirmClearSubmission() {
+    if (!clearTarget || !user || clearingId) return;
+    setClearingId(clearTarget.id);
+    setEditActionError("");
+    try {
+      await withdrawResearchSubmission({ paperId: clearTarget.id });
+      setSubmissions((current) => current.map((paper) => paper.id === clearTarget.id
+        ? { ...paper, status: "withdrawn", updated_at: new Date().toISOString() }
+        : paper));
+      if (editing?.id === clearTarget.id) {
+        setEditing(null);
+        setEditForm(null);
+        setEditFiles({ ...EMPTY_FILES });
+        setEditManuscriptText("");
+        setEditManuscriptLoading(false);
+        setEditError("");
+        setConfirmEditSave(false);
+      }
+      setClearTarget(null);
+    } catch (error) {
+      setEditActionError(error.message || "Could not clear this submission.");
+    } finally {
+      setClearingId(null);
+    }
+  }
 
   async function startEditing(paper, event) {
     if (editStartingId !== null) return;
@@ -249,12 +277,17 @@ export default function MySubmissions() {
             <div key={s.id} id={`submission-card-${s.id}`} data-submission-card className="card card-pad">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                 <h3 style={{ fontSize: 15, fontFamily: "var(--font-display)" }}>{s.title}</h3>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
                   <StatusBadge status={s.status} />
-                  {role === "student" && s.status !== "approved" && (
+                  {role === "student" && !["approved", "withdrawn"].includes(s.status) && (
+                    <>
+                    <Button type="button" variant="danger" size="sm" disabled={editStartingId !== null || clearingId !== null} onClick={() => { setClearTarget(s); setEditActionError(""); }}>
+                      <Trash2 size={13} /> Clear submission
+                    </Button>
                     <Button type="button" variant="secondary" size="sm" disabled={editStartingId !== null} onClick={(event) => startEditing(s, event)}>
                       <Pencil size={13} /> {editStartingId === s.id ? "Marking..." : s.status === "student_editing" ? "Continue editing" : "Mark for editing"}
                     </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -415,6 +448,25 @@ export default function MySubmissions() {
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
               <button type="button" className="btn btn-outline btn-sm" disabled={editSaving} onClick={() => setConfirmEditSave(false)}>Cancel</button>
               <button type="button" className="btn btn-primary btn-sm" disabled={editSaving} onClick={saveEditChanges}>{editSaving ? "Saving..." : "Yes, save changes"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {clearTarget && (
+        <div
+          role="presentation"
+          onMouseDown={(event) => { if (event.target === event.currentTarget && !clearingId) setClearTarget(null); }}
+          style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, background: "rgba(15, 23, 42, 0.55)" }}
+        >
+          <div className="card card-pad" role="alertdialog" aria-modal="true" aria-labelledby="clear-submission-title" style={{ width: "min(100%, 460px)", boxShadow: "var(--shadow-lg)" }}>
+            <h2 id="clear-submission-title" style={{ fontSize: 19 }}>Are you sure you want to clear this submission?</h2>
+            <p style={{ marginTop: 10, color: "var(--ink-700)" }}>
+              <strong>{clearTarget.title}</strong> will be withdrawn from active review. Its record and activity history are preserved, and the same manuscript can be submitted again.
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
+              <button type="button" className="btn btn-outline btn-sm" disabled={clearingId !== null} onClick={() => setClearTarget(null)}>Cancel</button>
+              <button type="button" className="btn btn-danger btn-sm" disabled={clearingId !== null} onClick={confirmClearSubmission}>{clearingId ? "Clearing..." : "Yes, clear submission"}</button>
             </div>
           </div>
         </div>
