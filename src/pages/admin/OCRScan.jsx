@@ -877,7 +877,7 @@ function handleFile(e) {
                     : formatReview.status === "match"
                       ? "Paper format check"
                       : formatReview.status === "insufficient"
-                        ? "Format comparison needs more text"
+                        ? "Format check inconclusive (optional)"
                         : "Format comparison unavailable"}
               </strong>
               <span>{formatReview.message}</span>

@@ -145,8 +145,8 @@ export async function reviewPaperFormat(documentText) {
     return {
       ...comparison,
       message: comparison.candidateSections.length < 3
-        ? `Only ${sections.length ? sections.join(", ") : "a few recognizable section headings"} were detected. Scan the complete paper for a reliable format comparison.`
-        : `There are not enough complete archived papers to compare this scan yet (${comparison.comparedPapers} usable papers found).`,
+        ? `Only ${sections.length ? sections.join(", ") : "a few recognizable section headings"} were detected, so the format check is inconclusive. This does not prevent archiving.`
+        : `The repository has only ${comparison.comparedPapers} usable papers for comparison, so the format check is inconclusive. This does not prevent archiving.`,
     };
   }
 

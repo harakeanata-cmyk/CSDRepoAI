@@ -63,9 +63,17 @@ function validateDocumentText(ocrText) {
     };
   }
 
+  // A low unique-token ratio alone is not evidence of bad OCR. Research papers
+  // often repeat domain terms, and OCR can include repeated headers/footers.
+  // Reject only when one token overwhelmingly dominates the extracted text,
+  // which is a stronger signal of a stuck or corrupted OCR result.
   const contentTokens = tokens.filter((token) => token.length >= 3);
-  const uniqueRatio = new Set(contentTokens).size / Math.max(contentTokens.length, 1);
-  if (uniqueRatio < 0.2) {
+  const tokenCounts = new Map();
+  for (const token of contentTokens) tokenCounts.set(token, (tokenCounts.get(token) || 0) + 1);
+  let dominantTokenCount = 0;
+  for (const count of tokenCounts.values()) dominantTokenCount = Math.max(dominantTokenCount, count);
+  const dominantTokenRatio = dominantTokenCount / Math.max(contentTokens.length, 1);
+  if (dominantTokenRatio > 0.35) {
     return {
       ok: false,
       message: "The OCR text appears too repetitive or garbled to verify this as a research paper. Please upload clearer images and scan again.",
