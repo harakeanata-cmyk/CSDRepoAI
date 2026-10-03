@@ -795,8 +795,8 @@ export default function Submit() {
                 <div className="auth-error" role="alert" style={{ margin: 0 }}>
                   <div>{errorMsg}</div>
                   {errorMsg.includes("manuscript file has already been submitted") && (
-                    <button type="button" className="btn btn-outline btn-sm" style={{ marginTop: 8 }} onClick={handleClearForm}>
-                      Clear this submission
+                    <button type="button" className="btn btn-outline btn-sm" style={{ marginTop: 8 }} onClick={() => navigate("/student/submissions")}>
+                      Open My Submissions
                     </button>
                   )}
                 </div>
