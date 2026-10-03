@@ -154,7 +154,10 @@ export default function Profile() {
             </Field>
           )}
           <Field label="Email">
-            <input className="input" value={user?.email || ""} disabled style={{ color: "var(--ink-500)", background: "var(--surface-sunken)" }} />
+            <div className="profile-email-field">
+              <input className="input" value={user?.email || ""} disabled style={{ color: "var(--ink-500)", background: "var(--surface-sunken)" }} />
+              <LockKeyhole className="profile-email-lock" size={16} aria-label="Email is locked" title="Email address cannot be changed here" />
+            </div>
           </Field>
           <Field label="Role">
             <input className="input" value={profile?.role || ""} disabled style={{ color: "var(--ink-500)", background: "var(--surface-sunken)", textTransform: "capitalize" }} />
@@ -170,7 +173,7 @@ export default function Profile() {
 
         <div className="card card-pad profile-card">
           <div className="profile-card-heading">
-            <span className="profile-card-kicker profile-security-kicker"><LockKeyhole size={13} aria-hidden="true" /> Security</span>
+            <span className="profile-card-kicker">Security</span>
             <h2>Change password</h2>
             <p>Use a strong password to keep your account secure.</p>
           </div>

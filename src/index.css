@@ -1271,10 +1271,21 @@ a {
   text-transform: uppercase;
 }
 
-.profile-security-kicker {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.profile-email-field {
+  position: relative;
+}
+
+.profile-email-field .input {
+  padding-right: 42px;
+}
+
+.profile-email-lock {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  color: var(--ink-500);
+  transform: translateY(-50%);
+  pointer-events: none;
 }
 
 .profile-card-heading h2 {
