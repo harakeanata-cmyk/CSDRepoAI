@@ -73,7 +73,7 @@ async function assertManuscriptHashIsUnique(manuscriptSha256, excludePaperId = n
     .from("research_papers")
     .select("id")
     .eq("manuscript_sha256", manuscriptSha256)
-    .neq("status", "rejected");
+    .not("status", "in", "(rejected,student_editing,withdrawn)");
   if (excludePaperId) query = query.neq("id", excludePaperId);
 
   const { data, error } = await query.limit(1).maybeSingle();
