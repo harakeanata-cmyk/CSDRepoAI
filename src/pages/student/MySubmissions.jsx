@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { FileText, FolderOpen, Pencil, Trash2, X } from "lucide-react";
+import { Archive, FileText, FolderOpen, Pencil, RotateCcw, Trash2, X } from "lucide-react";
 import Layout from "../../components/Layout";
 import { PageHeader, StatusBadge, EmptyState, Field, Button } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
-import { beginResearchEditing, cancelResearchEditing, getMySubmissions, updateResearchSubmission, withdrawResearchSubmission } from "../../services/research";
+import { beginResearchEditing, cancelResearchEditing, getMySubmissions, permanentlyDeleteWithdrawnResearchSubmission, restoreWithdrawnResearchSubmission, updateResearchSubmission, withdrawResearchSubmission } from "../../services/research";
 import ResearchFileActions from "../../components/ResearchFileActions";
 import { analyzeResearchDocumentWithAI } from "../../services/metadataSuggestions";
 import { SDG_LIST } from "../../lib/sdgList";
@@ -37,6 +37,11 @@ export default function MySubmissions() {
   const [confirmEditSave, setConfirmEditSave] = useState(false);
   const [clearTarget, setClearTarget] = useState(null);
   const [clearingId, setClearingId] = useState(null);
+  const [viewMode, setViewMode] = useState("submissions");
+  const [restoreId, setRestoreId] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteConfirmStep, setDeleteConfirmStep] = useState(0);
+  const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
     if (!user) return;
@@ -48,7 +53,11 @@ export default function MySubmissions() {
     [submissions, statusFilter]
   );
 
-  const statuses = ["all", "pending", "under_review", "student_editing", "approved", "rejected", "withdrawn"];
+  const statuses = ["all", "pending", "under_review", "student_editing", "approved", "rejected"];
+  const recycleBinSubmissions = useMemo(() => submissions.filter((paper) => paper.status === "withdrawn"), [submissions]);
+  const displayedSubmissions = viewMode === "recycle-bin"
+    ? recycleBinSubmissions
+    : filtered.filter((paper) => paper.status !== "withdrawn");
 
   async function confirmClearSubmission() {
     if (!clearTarget || !user || clearingId) return;
@@ -69,10 +78,41 @@ export default function MySubmissions() {
         setConfirmEditSave(false);
       }
       setClearTarget(null);
+      setViewMode("recycle-bin");
     } catch (error) {
       setEditActionError(error.message || "Could not clear this submission.");
     } finally {
       setClearingId(null);
+    }
+  }
+
+  async function restoreSubmission(paper) {
+    if (!user || restoreId || deletingId) return;
+    setRestoreId(paper.id);
+    setEditActionError("");
+    try {
+      const restoredStatus = await restoreWithdrawnResearchSubmission({ paperId: paper.id });
+      setSubmissions((current) => current.map((item) => item.id === paper.id ? { ...item, status: restoredStatus || "pending", updated_at: new Date().toISOString() } : item));
+    } catch (error) {
+      setEditActionError(error.message || "Could not restore this submission.");
+    } finally {
+      setRestoreId(null);
+    }
+  }
+
+  async function permanentlyDeleteSubmission() {
+    if (!deleteTarget || deletingId || deleteConfirmStep !== 2) return;
+    setDeletingId(deleteTarget.id);
+    setEditActionError("");
+    try {
+      await permanentlyDeleteWithdrawnResearchSubmission({ paper: deleteTarget });
+      setSubmissions((current) => current.filter((paper) => paper.id !== deleteTarget.id));
+      setDeleteTarget(null);
+      setDeleteConfirmStep(0);
+    } catch (error) {
+      setEditActionError(error.message || "Could not permanently delete this submission.");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -242,7 +282,18 @@ export default function MySubmissions() {
         description={`${role === "faculty" ? "Faculty" : "Student"} research outputs submitted from your account and their current review status.`}
       />
 
-      {submissions.length > 0 && (
+      {role === "student" && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+          <Button type="button" variant={viewMode === "submissions" ? "primary" : "secondary"} size="sm" onClick={() => setViewMode("submissions")}>
+            <FileText size={14} /> My Submissions
+          </Button>
+          <Button type="button" variant={viewMode === "recycle-bin" ? "primary" : "secondary"} size="sm" onClick={() => setViewMode("recycle-bin")}>
+            <Archive size={14} /> Recycle Bin ({recycleBinSubmissions.length})
+          </Button>
+        </div>
+      )}
+
+      {viewMode === "submissions" && submissions.length > 0 && (
         <div style={{ display: "flex", gap: 6, marginBottom: 20, flexWrap: "wrap" }}>
           {statuses.map((s) => (
             <button
@@ -265,21 +316,31 @@ export default function MySubmissions() {
             <div key={i} className="skeleton" style={{ height: 110 }} />
           ))}
         </div>
-      ) : filtered.length === 0 ? (
+      ) : displayedSubmissions.length === 0 ? (
         <div className="card">
-          <EmptyState icon={FolderOpen} title="Nothing here yet">
-            {submissions.length === 0 ? "Nothing submitted yet." : "No submissions match this filter."}
+          <EmptyState icon={viewMode === "recycle-bin" ? Archive : FolderOpen} title={viewMode === "recycle-bin" ? "Recycle Bin is empty" : "Nothing here yet"}>
+            {viewMode === "recycle-bin" ? "Cleared submissions will be stored here until you restore or permanently delete them." : submissions.length === 0 ? "Nothing submitted yet." : "No submissions match this filter."}
           </EmptyState>
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {filtered.map((s) => (
+          {displayedSubmissions.map((s) => (
             <div key={s.id} id={`submission-card-${s.id}`} data-submission-card className="card card-pad">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                 <h3 style={{ fontSize: 15, fontFamily: "var(--font-display)" }}>{s.title}</h3>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
                   <StatusBadge status={s.status} />
-                  {role === "student" && !["approved", "withdrawn"].includes(s.status) && (
+                  {role === "student" && viewMode === "recycle-bin" && s.status === "withdrawn" && (
+                    <>
+                      <Button type="button" variant="secondary" size="sm" disabled={restoreId !== null || deletingId !== null} onClick={() => restoreSubmission(s)}>
+                        <RotateCcw size={13} /> {restoreId === s.id ? "Restoring..." : "Restore"}
+                      </Button>
+                      <Button type="button" variant="danger" size="sm" disabled={restoreId !== null || deletingId !== null} onClick={() => { setDeleteTarget(s); setDeleteConfirmStep(1); }}>
+                        <Trash2 size={13} /> Delete permanently
+                      </Button>
+                    </>
+                  )}
+                  {role === "student" && viewMode === "submissions" && !["approved", "withdrawn"].includes(s.status) && (
                     <>
                     <Button type="button" variant="danger" size="sm" disabled={editStartingId !== null || clearingId !== null} onClick={() => { setClearTarget(s); setEditActionError(""); }}>
                       <Trash2 size={13} /> Clear submission
@@ -303,6 +364,10 @@ export default function MySubmissions() {
                         ? "Approved"
                         : entry.status === "rejected"
                           ? "Rejected"
+                          : entry.status === "withdrawn"
+                            ? "Moved to Recycle Bin"
+                            : entry.status === "restored"
+                              ? "Restored from Recycle Bin"
                           : "Marked under review";
                       const reviewerRole = entry.actor?.role
                         ? entry.actor.role.charAt(0).toUpperCase() + entry.actor.role.slice(1)
@@ -462,11 +527,36 @@ export default function MySubmissions() {
           <div className="card card-pad" role="alertdialog" aria-modal="true" aria-labelledby="clear-submission-title" style={{ width: "min(100%, 460px)", boxShadow: "var(--shadow-lg)" }}>
             <h2 id="clear-submission-title" style={{ fontSize: 19 }}>Are you sure you want to clear this submission?</h2>
             <p style={{ marginTop: 10, color: "var(--ink-700)" }}>
-              <strong>{clearTarget.title}</strong> will be withdrawn from active review. Its record and activity history are preserved, and the same manuscript can be submitted again.
+              <strong>{clearTarget.title}</strong> will move to your Recycle Bin and leave active review. You can restore it or permanently delete it from there.
             </p>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
               <button type="button" className="btn btn-outline btn-sm" disabled={clearingId !== null} onClick={() => setClearTarget(null)}>Cancel</button>
               <button type="button" className="btn btn-danger btn-sm" disabled={clearingId !== null} onClick={confirmClearSubmission}>{clearingId ? "Clearing..." : "Yes, clear submission"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div
+          role="presentation"
+          onMouseDown={(event) => { if (event.target === event.currentTarget && !deletingId) { setDeleteTarget(null); setDeleteConfirmStep(0); } }}
+          style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, background: "rgba(15, 23, 42, 0.6)" }}
+        >
+          <div className="card card-pad" role="alertdialog" aria-modal="true" aria-labelledby="delete-submission-title" style={{ width: "min(100%, 460px)", boxShadow: "var(--shadow-lg)" }}>
+            <h2 id="delete-submission-title" style={{ fontSize: 19 }}>{deleteConfirmStep === 1 ? "Permanently delete this submission?" : "Final confirmation"}</h2>
+            <p style={{ marginTop: 10, color: "var(--ink-700)" }}>
+              {deleteConfirmStep === 1
+                ? <>You selected <strong>{deleteTarget.title}</strong>. This permanently deletes its submission record, activity history, and uploaded files. This cannot be undone.</>
+                : <>This is the second confirmation. Permanently delete <strong>{deleteTarget.title}</strong> now?</>}
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
+              <button type="button" className="btn btn-outline btn-sm" disabled={deletingId !== null} onClick={() => { setDeleteTarget(null); setDeleteConfirmStep(0); }}>Cancel</button>
+              {deleteConfirmStep === 1 ? (
+                <button type="button" className="btn btn-danger btn-sm" onClick={() => setDeleteConfirmStep(2)}>Continue</button>
+              ) : (
+                <button type="button" className="btn btn-danger btn-sm" disabled={deletingId !== null} onClick={permanentlyDeleteSubmission}>{deletingId ? "Deleting..." : "Yes, permanently delete"}</button>
+              )}
             </div>
           </div>
         </div>

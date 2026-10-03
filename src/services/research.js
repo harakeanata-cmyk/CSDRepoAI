@@ -508,7 +508,7 @@ export async function getMySubmissions(userId) {
   if (activityError) throw activityError;
 
   const reviewActivity = (activity || []).filter((entry) => (
-    entry.action === "student_withdrew"
+    ["student_withdrew", "student_restored"].includes(entry.action)
       ? true
       : entry.action === "status_changed" && ["approved", "rejected", "under_review"].includes(entry.detail?.status)
   ));
@@ -532,7 +532,11 @@ export async function getMySubmissions(userId) {
     const entries = activityByPaperId.get(entry.paper_id) || [];
     entries.push({
       id: entry.id,
-      status: entry.action === "student_withdrew" ? "withdrawn" : entry.detail.status,
+      status: entry.action === "student_withdrew"
+        ? "withdrawn"
+        : entry.action === "student_restored"
+          ? "restored"
+          : entry.detail.status,
       created_at: entry.created_at,
       actor: accountById.get(entry.actor_id) || null,
     });
@@ -607,6 +611,38 @@ export async function withdrawResearchSubmission({ paperId }) {
     }
     throw error;
   }
+  notifyResearchDataChanged();
+}
+
+/** Restore a student's own submission from the recycle bin. */
+export async function restoreWithdrawnResearchSubmission({ paperId }) {
+  const { data, error } = await supabase.rpc("restore_my_withdrawn_research_submission", {
+    p_paper_id: paperId,
+  });
+  if (error) throw error;
+  notifyResearchDataChanged();
+  return data;
+}
+
+/** Permanently remove a withdrawn submission and its stored research files. */
+export async function permanentlyDeleteWithdrawnResearchSubmission({ paper }) {
+  const fileFields = ["file_url", "source_code_url", "ieee_paper_url", "acm_paper_url", "apa_paper_url"];
+  const storagePaths = [...new Set(fileFields
+    .flatMap((field) => getResearchFileUrls(paper?.[field]))
+    .map(getResearchStoragePath)
+    .filter(Boolean))];
+
+  if (storagePaths.length) {
+    const { error: storageError } = await supabase.storage.from("research-files").remove(storagePaths);
+    if (storageError) {
+      throw new Error(`Could not remove the submission files, so the submission was kept in the recycle bin. ${storageError.message}`);
+    }
+  }
+
+  const { error } = await supabase.rpc("permanently_delete_my_withdrawn_research_submission", {
+    p_paper_id: paper.id,
+  });
+  if (error) throw error;
   notifyResearchDataChanged();
 }
 
