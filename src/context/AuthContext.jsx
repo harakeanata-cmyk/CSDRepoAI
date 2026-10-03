@@ -6,6 +6,7 @@ import { parseRecoveryCode, parseRecoveryParams } from "../lib/authRecovery";
 import { getPasswordResetRedirectTo } from "../lib/authReset";
 import { buildProfileState } from "../lib/authProfile";
 import { applyAuthenticatedSession } from "../lib/authSession";
+import { clearSubmissionDraft } from "../lib/submissionDraftStore";
 
 const AuthContext = createContext(null);
 
@@ -286,9 +287,14 @@ export function AuthProvider({ children }) {
   }
 
   async function signOut() {
+    const userId = session?.user?.id;
     setSession(null);
     setProfile(null);
     setRecoverySession(false);
+    // Submission drafts include uploaded File bytes in IndexedDB so students
+    // can switch tabs without losing work. Remove the current user's draft on
+    // logout so it does not reappear after their next login.
+    if (userId) await clearSubmissionDraft(userId);
     try {
       const { error } = await supabase.auth.signOut();
       if (!error) return { error: null };
