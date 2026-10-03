@@ -19,6 +19,7 @@ import {
   ZoomIn,
   ZoomOut,
   Plus,
+  Trash2,
 } from "lucide-react";
 import Layout from "../../components/Layout";
 import { PageHeader, Field } from "../../components/ui";
@@ -198,6 +199,7 @@ function handleFile(e) {
   }
 
   function removeFile(index) {
+    URL.revokeObjectURL(previews[index]);
     const nextFiles = files.filter((_, i) => i !== index);
     const nextPreviews = previews.filter((_, i) => i !== index);
     const nextScannedPageTexts = scannedPageTexts.filter((_, i) => i !== index);
@@ -463,6 +465,7 @@ function handleFile(e) {
   }
 
   function resetAll() {
+    previews.forEach((preview) => URL.revokeObjectURL(preview));
     setFiles([]);
     setPreviews([]);
     setOcrText("");
@@ -475,11 +478,27 @@ function handleFile(e) {
     setDonePages(0);
     setEstimatedSecondsRemaining(null);
     setSaveEstimateSeconds(null);
+    setIsStopping(false);
+    setCanStopScan(false);
     setMeta({ title: "", authors: "", academicYear: "", program: "", adviser: "", panelMembers: "", abstract: "", keywords: "" });
     setSdgTags([]);
+    setAiStatus("idle");
     setKeywordSuggestions([]);
     setKeywordSuggestionStatus("idle");
     setSaveProgress({ completed: 0, total: 0 });
+    setUploadError("");
+    setFormatReview({ status: "idle", message: "" });
+    setPreviewIndex(null);
+    setPreviewZoom(1);
+  }
+
+  function handleClearAll() {
+    const pageCount = files.length;
+    if (!pageCount) return;
+    const confirmed = window.confirm(
+      `Remove all ${pageCount} selected page${pageCount === 1 ? "" : "s"} and discard this unsaved OCR draft? This will not delete papers already archived.`,
+    );
+    if (confirmed) resetAll();
   }
 
   function addKeywordSuggestion(suggestion) {
@@ -589,18 +608,23 @@ function handleFile(e) {
 
           {previews.length > 0 && step !== "scanning" && (
             <>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
                 <h3 style={{ fontSize: 13.5 }}>
                   {previews.length} page{previews.length > 1 ? "s" : ""} selected
                 </h3>
-                <span style={{ fontSize: 11.5, color: "var(--ink-500)" }}>
+                <span style={{ flex: "1 1 180px", fontSize: 11.5, color: "var(--ink-500)" }}>
                   Drag thumbnails to reorder pages. The first visible page is Page 1.
                 </span>
-               {(step === "idle" || step === "scanned") && (
-              <button className="btn btn-ghost btn-sm" onClick={openFilePicker}>
-                <UploadCloud size={13} /> Add more
-              </button>
-              )}
+                {(step === "idle" || step === "scanned") && (
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={openFilePicker}>
+                      <UploadCloud size={13} /> Add more
+                    </button>
+                    <button type="button" className="btn btn-outline btn-sm" onClick={handleClearAll}>
+                      <Trash2 size={13} /> Remove all
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="ocr-thumb-strip">
@@ -624,10 +648,10 @@ function handleFile(e) {
                     </button>
                     <span className="ocr-thumb-page">Pg {index + 1}</span>
                     {(step === "idle" || step === "scanned") && (
-              <button className="ocr-thumb-remove" onClick={() => removeFile(index)} aria-label="Remove page">
-                <X size={11} />
-              </button>
-                  )}
+                      <button type="button" className="ocr-thumb-remove" onClick={() => removeFile(index)} aria-label={`Remove page ${index + 1}`}>
+                        <X size={11} />
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
