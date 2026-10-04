@@ -2231,51 +2231,94 @@ table.admin-archive-table td:nth-child(7) { width: 8%; }
   z-index: 1200;
   display: grid;
   place-items: center;
-  background: rgba(20, 33, 61, 0.06);
+  background: rgba(13, 20, 32, 0.28);
+  backdrop-filter: blur(3px);
   pointer-events: none;
-  animation: portal-loader-appear 0.08s ease-out both;
+  animation: portal-loader-appear 0.1s ease-out both;
 }
 
 .portal-navigation-loader-card {
-  display: flex;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
   align-items: center;
-  gap: 12px;
-  padding: 14px 19px 14px 14px;
+  column-gap: 13px;
+  row-gap: 13px;
+  min-width: 258px;
+  padding: 15px 17px 14px;
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: 15px;
   background: var(--surface);
   box-shadow: var(--shadow-lg);
-  color: var(--ink-700);
-  font-size: 13px;
-  font-weight: 600;
-  animation: portal-loader-card-in 0.12s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  color: var(--ink-900);
+  animation: portal-loader-card-in 0.1s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 .portal-navigation-loader-mark {
   position: relative;
   display: grid;
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   place-items: center;
-  border-radius: 11px;
+  border: 1px solid var(--brass-200);
+  border-radius: 12px;
   background: var(--brass-50);
 }
 
 .portal-navigation-loader-mark img {
-  width: 24px;
-  height: 24px;
+  width: 23px;
+  height: 23px;
   object-fit: contain;
-  animation: portal-loader-pulse 0.8s ease-in-out infinite;
+  animation: portal-loader-pulse 0.9s ease-in-out infinite;
 }
 
 .portal-navigation-spinner {
   position: absolute;
   inset: -4px;
-  border: 2px solid transparent;
-  border-top-color: var(--brass-600);
-  border-right-color: var(--brass-300);
+  border: 1.5px solid transparent;
+  border-top-color: var(--success-600);
+  border-right-color: var(--brass-500);
   border-radius: 50%;
-  animation: portal-loader-spin 0.55s linear infinite;
+  animation: portal-loader-spin 0.65s linear infinite;
+}
+
+.portal-navigation-loader-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.portal-navigation-loader-brand {
+  color: var(--ink-900);
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+}
+
+.portal-navigation-loader-label {
+  color: var(--ink-500);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.portal-navigation-loader-track {
+  grid-column: 1 / -1;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+}
+
+.portal-navigation-loader-track span {
+  display: block;
+  width: 42%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--success-600), var(--brass-500));
+  animation: portal-loader-progress 0.7s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
 
 @keyframes portal-loader-spin {
@@ -2283,7 +2326,12 @@ table.admin-archive-table td:nth-child(7) { width: 8%; }
 }
 
 @keyframes portal-loader-pulse {
-  50% { transform: scale(0.88); opacity: 0.72; }
+  50% { transform: scale(0.92); opacity: 0.82; }
+}
+
+@keyframes portal-loader-progress {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(245%); }
 }
 
 @keyframes portal-loader-appear {
@@ -2300,7 +2348,8 @@ table.admin-archive-table td:nth-child(7) { width: 8%; }
   .portal-navigation-loader,
   .portal-navigation-loader-card,
   .portal-navigation-loader-mark img,
-  .portal-navigation-spinner {
+  .portal-navigation-spinner,
+  .portal-navigation-loader-track span {
     animation-duration: 0.01ms;
     animation-iteration-count: 1;
   }

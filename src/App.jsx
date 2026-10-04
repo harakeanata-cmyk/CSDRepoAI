@@ -103,7 +103,13 @@ function PortalNavigationLoader() {
           <img src="/logo.png" alt="" />
           <span className="portal-navigation-spinner" />
         </div>
-        <span>Opening your portal</span>
+        <div className="portal-navigation-loader-copy">
+          <span className="portal-navigation-loader-brand">CSDRepoAI</span>
+          <span className="portal-navigation-loader-label">Preparing your workspace</span>
+        </div>
+        <div className="portal-navigation-loader-track" aria-hidden="true">
+          <span />
+        </div>
       </div>
     </div>
   );
