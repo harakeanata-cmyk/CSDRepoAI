@@ -58,10 +58,14 @@ function getPaddleOcr() {
           // the long session-initialization timeout seen with v5 on phones.
           textDetectionModelName: "PP-OCRv6_tiny_det",
           textRecognitionModelName: "PP-OCRv6_tiny_rec",
+          // OCR is invoked once per page, so a large recognition batch only
+          // reserves extra session memory. Keep it at one for phone browsers.
+          textDetectionBatchSize: 1,
+          textRecognitionBatchSize: 1,
           ortOptions: {
-            // Use the device GPU where the browser supports WebGPU; the SDK
-            // automatically falls back to WASM on unsupported devices.
-            backend: "auto",
+            // WebGPU session allocation can exceed the memory budget on mobile
+            // GPUs. WASM is predictable across phones and desktop browsers.
+            backend: "wasm",
             wasmPaths: new URL(`${import.meta.env.BASE_URL}ort-wasm/`, window.location.origin).href,
             numThreads: 1,
             simd: true,
@@ -87,7 +91,11 @@ function getPaddleOcr() {
       })
       .catch((error) => {
         paddleOcrPromise = null;
-        throw new Error(`PaddleOCR could not start: ${error.message || "model initialization failed"}. Check your connection and reload the page to try again.`);
+        const message = error.message || "model initialization failed";
+        if (/bad_alloc|out of memory|memory allocation/i.test(message)) {
+          throw new Error("PaddleOCR could not start because this device ran out of memory. Close other tabs or apps, reload the page, and try again with a smaller image.");
+        }
+        throw new Error(`PaddleOCR could not start: ${message}. Check your connection and reload the page to try again.`);
       });
   }
   return paddleOcrPromise;
@@ -429,9 +437,11 @@ async function prepareOcrImage(file) {
 
   try {
     const bitmap = await createImageBitmap(file);
-    // Avoid upscaling small phone images; it wastes memory and can crash
-    // canvas allocation on mobile Safari without adding OCR detail.
-    const maxDimension = 2400;
+    // Camera photos can decode to tens of millions of pixels. Keep the input
+    // smaller on phones to avoid exhausting memory in canvas and OCR buffers.
+    const constrainedDevice = Number(navigator.deviceMemory || 8) <= 4
+      || window.matchMedia?.("(max-width: 700px)").matches;
+    const maxDimension = constrainedDevice ? 1800 : 2400;
     const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
     const width = Math.max(1, Math.round(bitmap.width * scale));
     const height = Math.max(1, Math.round(bitmap.height * scale));
@@ -447,6 +457,9 @@ async function prepareOcrImage(file) {
     bitmap.close?.();
 
     const preparedBlob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.95));
+    // Release the large decoded pixel buffer before OCR allocates its tensors.
+    canvas.width = 0;
+    canvas.height = 0;
     return preparedBlob || file;
   } catch {
     return file;
