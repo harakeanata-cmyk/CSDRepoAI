@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -66,6 +66,8 @@ export default function Layout({ children }) {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState({});
+  const sdgSubnavRef = useRef(null);
+  const sdgSubnavScrollTop = useRef(0);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [logoutPending, setLogoutPending] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -93,6 +95,21 @@ export default function Layout({ children }) {
   useEffect(() => {
     setMenuOpen(false);
   }, [location.pathname]);
+
+  // Keep the SDG list available while browsing filtered archive routes.
+  useEffect(() => {
+    if (location.search.includes("sdg=")) {
+      setOpenGroups((groups) => ({ ...groups, sdg: true }));
+    }
+  }, [location.pathname, location.search]);
+
+  // Route changes can recreate the subnav. Restore its scroll position after
+  // React commits the selected SDG route so the list does not jump to the top.
+  useLayoutEffect(() => {
+    if (sdgSubnavRef.current) {
+      sdgSubnavRef.current.scrollTop = sdgSubnavScrollTop.current;
+    }
+  }, [location.pathname, location.search, openGroups.sdg]);
 
   // Prevent background scroll while the mobile drawer is open
   useEffect(() => {
@@ -242,8 +259,8 @@ export default function Layout({ children }) {
           {items.map((item) => {
             if (item.type === "sdg-group") {
               const Icon = item.icon;
-              const isOpen = Boolean(openGroups[item.key]);
               const activeSdg = location.pathname.startsWith(item.basePath) && location.search.includes("sdg=");
+              const isOpen = Boolean(openGroups[item.key] || activeSdg);
               return (
                 <div key={item.key} className="sidebar-group">
                   <button
@@ -263,7 +280,11 @@ export default function Layout({ children }) {
                     />
                   </button>
                   {isOpen && (
-                    <div className="sidebar-subnav">
+                    <div
+                      className="sidebar-subnav"
+                      ref={sdgSubnavRef}
+                      onScroll={(event) => { sdgSubnavScrollTop.current = event.currentTarget.scrollTop; }}
+                    >
                       {SDG_LIST.map((sdg) => (
                         <NavLink
                           key={sdg.id}
