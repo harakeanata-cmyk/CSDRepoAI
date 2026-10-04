@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -24,6 +24,90 @@ import OCRScan from "./pages/admin/OCRScan";
 import ReviewApproval from "./pages/admin/ReviewApproval";
 import Settings from "./pages/Settings";
 import ResearchDocumentPreview from "./pages/ResearchDocumentPreview";
+
+function PortalNavigationLoader() {
+  const location = useLocation();
+  const [isLoading, setIsLoading] = useState(false);
+  const pendingNavigation = useRef(null);
+  const locationRef = useRef(location);
+  locationRef.current = location;
+
+  useEffect(() => {
+    const clearPending = () => {
+      if (!pendingNavigation.current) return;
+      clearTimeout(pendingNavigation.current.fallbackTimer);
+      clearTimeout(pendingNavigation.current.finishTimer);
+      pendingNavigation.current = null;
+      setIsLoading(false);
+    };
+
+    const beginNavigation = (destination) => {
+      clearPending();
+      const navigation = { destination, startedAt: Date.now(), fallbackTimer: null, finishTimer: null };
+      navigation.fallbackTimer = window.setTimeout(clearPending, 5000);
+      pendingNavigation.current = navigation;
+      setIsLoading(true);
+    };
+
+    const portalPath = /^\/(student|faculty|admin)(?:\/|$)/;
+    const handleLinkClick = (event) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      if (!(event.target instanceof Element)) return;
+      const link = event.target.closest("a[href]");
+      if (!link || link.target === "_blank" || link.hasAttribute("download")) return;
+
+      const target = new URL(link.href, window.location.href);
+      const currentLocation = `${locationRef.current.pathname}${locationRef.current.search}`;
+      const destination = `${target.pathname}${target.search}`;
+      if (target.origin !== window.location.origin || !portalPath.test(locationRef.current.pathname) || !portalPath.test(target.pathname) || destination === currentLocation) return;
+
+      beginNavigation(destination);
+    };
+
+    const handleHistoryNavigation = () => {
+      if (portalPath.test(locationRef.current.pathname)) beginNavigation("history");
+    };
+
+    document.addEventListener("click", handleLinkClick, true);
+    window.addEventListener("popstate", handleHistoryNavigation);
+    return () => {
+      document.removeEventListener("click", handleLinkClick, true);
+      window.removeEventListener("popstate", handleHistoryNavigation);
+      clearPending();
+    };
+  }, []);
+
+  useEffect(() => {
+    const navigation = pendingNavigation.current;
+    if (!navigation) return undefined;
+    const currentLocation = `${location.pathname}${location.search}`;
+    if (navigation.destination !== "history" && navigation.destination !== currentLocation) return undefined;
+
+    const remainingVisibleTime = Math.max(0, 320 - (Date.now() - navigation.startedAt));
+    navigation.finishTimer = window.setTimeout(() => {
+      if (pendingNavigation.current === navigation) {
+        clearTimeout(navigation.fallbackTimer);
+        pendingNavigation.current = null;
+        setIsLoading(false);
+      }
+    }, remainingVisibleTime);
+    return undefined;
+  }, [location.pathname, location.search]);
+
+  if (!isLoading) return null;
+
+  return (
+    <div className="portal-navigation-loader" role="status" aria-live="polite" aria-label="Loading page">
+      <div className="portal-navigation-loader-card">
+        <div className="portal-navigation-loader-mark">
+          <img src="/logo.png" alt="" />
+          <span className="portal-navigation-spinner" />
+        </div>
+        <span>Opening your portal</span>
+      </div>
+    </div>
+  );
+}
 
 function PersistentOCRScan() {
   const location = useLocation();
@@ -127,6 +211,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
         <PersistentOCRScan />
+        <PortalNavigationLoader />
       </BrowserRouter>
     </AuthProvider>
   );
