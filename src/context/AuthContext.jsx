@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { normalizeEmail, validatePassword } from "../lib/authValidation";
 import { validatePersonNameFields } from "../lib/nameValidation";
@@ -39,6 +39,7 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [recoverySession, setRecoverySession] = useState(false);
+  const verifiedSession = useRef({ accessToken: null, expiresAt: 0 });
 
   async function loadProfile(userId, user = null) {
     const { data, error } = await supabase
@@ -54,27 +55,40 @@ export function AuthProvider({ children }) {
     }
   }
 
-  const verifySession = useCallback(async () => {
+  const verifySession = useCallback(async ({ force = false } = {}) => {
     try {
       const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
       if (sessionError || !currentSession?.user?.id || !currentSession.access_token) {
+        verifiedSession.current = { accessToken: null, expiresAt: 0 };
         await supabase.auth.signOut({ scope: "local" }).catch(() => {});
         setSession(null);
         setProfile(null);
         return false;
+      }
+
+      const { accessToken, expiresAt } = verifiedSession.current;
+      const sessionExpiresAt = Number(currentSession.expires_at || 0) * 1000;
+      if (!force && accessToken === currentSession.access_token && expiresAt > Date.now() && (!sessionExpiresAt || sessionExpiresAt > Date.now())) {
+        return true;
       }
 
       // getSession reads the local token; getUser asks Supabase Auth to verify it.
       const { data: { user: verifiedUser }, error: userError } = await supabase.auth.getUser(currentSession.access_token);
       if (userError || !verifiedUser?.id || verifiedUser.id !== currentSession.user.id) {
+        verifiedSession.current = { accessToken: null, expiresAt: 0 };
         await supabase.auth.signOut({ scope: "local" }).catch(() => {});
         setSession(null);
         setProfile(null);
         return false;
       }
 
+      verifiedSession.current = {
+        accessToken: currentSession.access_token,
+        expiresAt: sessionExpiresAt || Date.now() + 60_000,
+      };
       return true;
     } catch {
+      verifiedSession.current = { accessToken: null, expiresAt: 0 };
       await supabase.auth.signOut({ scope: "local" }).catch(() => {});
       setSession(null);
       setProfile(null);
@@ -95,6 +109,9 @@ export function AuthProvider({ children }) {
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "PASSWORD_RECOVERY") setRecoverySession(true);
+      if (!session || session.access_token !== verifiedSession.current.accessToken) {
+        verifiedSession.current = { accessToken: null, expiresAt: 0 };
+      }
       setSession(session);
       if (session?.user) {
         loadProfile(session.user.id, session.user);

@@ -2225,6 +2225,384 @@ table.admin-archive-table td:nth-child(7) { width: 8%; }
   font-family: var(--font-body);
 }
 
+.portal-navigation-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  background: rgba(13, 20, 32, 0.28);
+  backdrop-filter: blur(3px);
+  pointer-events: none;
+  animation: portal-loader-appear 0.1s ease-out both;
+}
+
+.portal-navigation-loader-card {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 13px;
+  row-gap: 13px;
+  min-width: 258px;
+  padding: 15px 17px 14px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  color: var(--ink-900);
+  animation: portal-loader-card-in 0.1s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.portal-navigation-loader-mark {
+  position: relative;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid var(--brass-200);
+  border-radius: 12px;
+  background: var(--brass-50);
+}
+
+.portal-navigation-loader-mark img {
+  width: 23px;
+  height: 23px;
+  object-fit: contain;
+  animation: portal-loader-pulse 0.9s ease-in-out infinite;
+}
+
+.portal-navigation-spinner {
+  position: absolute;
+  inset: -4px;
+  border: 1.5px solid transparent;
+  border-top-color: var(--success-600);
+  border-right-color: var(--brass-500);
+  border-radius: 50%;
+  animation: portal-loader-spin 0.65s linear infinite;
+}
+
+.portal-navigation-loader-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.portal-navigation-loader-brand {
+  color: var(--ink-900);
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+}
+
+.portal-navigation-loader-label {
+  color: var(--ink-500);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.portal-navigation-loader-track {
+  grid-column: 1 / -1;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+}
+
+.portal-navigation-loader-track span {
+  display: block;
+  width: 42%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--success-600), var(--brass-500));
+  animation: portal-loader-progress 0.7s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+@keyframes portal-loader-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes portal-loader-pulse {
+  50% { transform: scale(0.92); opacity: 0.82; }
+}
+
+@keyframes portal-loader-progress {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(245%); }
+}
+
+@keyframes portal-loader-appear {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes portal-loader-card-in {
+  from { opacity: 0; transform: translateY(5px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-navigation-loader,
+  .portal-navigation-loader-card,
+  .portal-navigation-loader-mark img,
+  .portal-navigation-spinner,
+  .portal-navigation-loader-track span {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+  }
+}
+
+.portal-welcome-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(9, 16, 28, 0.44);
+  backdrop-filter: blur(5px) saturate(0.86);
+  pointer-events: none;
+  animation: portal-welcome-backdrop-in 0.2s ease-out both;
+}
+
+.portal-welcome-card {
+  --welcome-accent: var(--success-600);
+  --welcome-accent-soft: var(--success-100);
+  position: relative;
+  display: flex;
+  width: min(100%, 370px);
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+  padding: 28px 30px 24px;
+  border: 1px solid color-mix(in srgb, var(--welcome-accent) 20%, var(--line));
+  border-radius: 20px;
+  background: linear-gradient(155deg, var(--surface) 0%, var(--surface) 70%, var(--surface-sunken) 100%);
+  box-shadow: 0 24px 70px rgba(2, 6, 23, 0.28), 0 2px 8px rgba(2, 6, 23, 0.12);
+  color: var(--ink-900);
+  text-align: center;
+  animation: portal-welcome-card-in 0.42s cubic-bezier(0.18, 0.8, 0.25, 1.12) both;
+}
+
+.portal-welcome-card::before {
+  position: absolute;
+  inset: 0 18% auto;
+  height: 2px;
+  border-radius: 0 0 999px 999px;
+  background: linear-gradient(90deg, transparent, var(--welcome-accent), var(--brass-500), transparent);
+  content: "";
+}
+
+.portal-welcome-card[data-portal="faculty"] {
+  --welcome-accent: var(--info-600);
+  --welcome-accent-soft: var(--info-100);
+}
+
+.portal-welcome-card[data-portal="admin"] {
+  --welcome-accent: var(--brass-600);
+  --welcome-accent-soft: var(--brass-100);
+}
+
+.portal-welcome-art {
+  position: relative;
+  display: grid;
+  width: 102px;
+  height: 102px;
+  place-items: center;
+  margin: 1px 0 18px;
+}
+
+.portal-welcome-orbit {
+  position: absolute;
+  border: 1px solid color-mix(in srgb, var(--welcome-accent) 28%, transparent);
+  border-radius: 50%;
+}
+
+.portal-welcome-orbit-one {
+  inset: 6px;
+  animation: portal-welcome-orbit 5s linear infinite;
+}
+
+.portal-welcome-orbit-two {
+  inset: 0;
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--brass-500) 48%, transparent);
+  transform: rotate(24deg) scaleY(0.58);
+  animation: portal-welcome-orbit 7s linear infinite reverse;
+}
+
+.portal-welcome-star {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--surface);
+  border-radius: 50%;
+  background: var(--welcome-accent);
+  box-shadow: 0 0 0 3px var(--welcome-accent-soft);
+  animation: portal-welcome-twinkle 1.4s ease-in-out infinite alternate;
+}
+
+.portal-welcome-star-one {
+  top: 13px;
+  right: 8px;
+}
+
+.portal-welcome-star-two {
+  bottom: 14px;
+  left: 5px;
+  width: 4px;
+  height: 4px;
+  animation-delay: 0.3s;
+}
+
+.portal-welcome-emblem {
+  z-index: 1;
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--welcome-accent) 18%, var(--line));
+  border-radius: 18px;
+  background: linear-gradient(145deg, var(--surface), var(--welcome-accent-soft));
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--welcome-accent) 16%, transparent);
+  animation: portal-welcome-emblem-in 0.5s 0.08s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.portal-welcome-emblem img {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+}
+
+.portal-welcome-kicker {
+  color: var(--welcome-accent);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  line-height: 1.5;
+  text-transform: uppercase;
+  animation: portal-welcome-copy-in 0.3s 0.1s both;
+}
+
+.portal-welcome-kicker span {
+  padding: 0 3px;
+  color: var(--brass-600);
+}
+
+.portal-welcome-heading {
+  margin: 12px 0 0;
+  color: var(--ink-900);
+  font-family: var(--font-display);
+  font-size: clamp(27px, 7vw, 34px);
+  font-weight: 500;
+  letter-spacing: -0.035em;
+  line-height: 1.04;
+  animation: portal-welcome-copy-in 0.36s 0.14s both;
+}
+
+.portal-welcome-heading span {
+  color: var(--welcome-accent);
+  font-style: italic;
+}
+
+.portal-welcome-message {
+  margin: 11px 0 0;
+  color: var(--ink-500);
+  font-size: 12px;
+  line-height: 1.5;
+  animation: portal-welcome-copy-in 0.36s 0.18s both;
+}
+
+.portal-welcome-ready {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 20px;
+  padding: 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--welcome-accent) 16%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--welcome-accent-soft) 70%, var(--surface));
+  color: var(--welcome-accent);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.025em;
+  animation: portal-welcome-copy-in 0.35s 0.23s both;
+}
+
+.portal-welcome-ready span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--welcome-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--welcome-accent) 14%, transparent);
+}
+
+.portal-welcome-overlay.is-leaving {
+  animation: portal-welcome-backdrop-out 0.14s ease-in both;
+}
+
+.portal-welcome-overlay.is-leaving .portal-welcome-card {
+  animation: portal-welcome-card-out 0.14s ease-in both;
+}
+
+@keyframes portal-welcome-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes portal-welcome-backdrop-out {
+  to { opacity: 0; }
+}
+
+@keyframes portal-welcome-card-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.965); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes portal-welcome-card-out {
+  to { opacity: 0; transform: translateY(-5px) scale(0.985); }
+}
+
+@keyframes portal-welcome-copy-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes portal-welcome-emblem-in {
+  from { opacity: 0; transform: scale(0.82) rotate(-7deg); }
+  to { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+@keyframes portal-welcome-orbit {
+  to { rotate: 360deg; }
+}
+
+@keyframes portal-welcome-twinkle {
+  to { opacity: 0.48; transform: scale(0.8); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-welcome-overlay,
+  .portal-welcome-overlay.is-leaving,
+  .portal-welcome-overlay.is-leaving .portal-welcome-card,
+  .portal-welcome-card,
+  .portal-welcome-emblem,
+  .portal-welcome-kicker,
+  .portal-welcome-heading,
+  .portal-welcome-message,
+  .portal-welcome-ready,
+  .portal-welcome-orbit,
+  .portal-welcome-star {
+    animation-duration: 0.01ms;
+    animation-delay: 0ms;
+    animation-iteration-count: 1;
+  }
+}
+
 /* ---------- file dropzone ---------- */
 
 .dropzone {
