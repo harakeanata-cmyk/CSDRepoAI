@@ -7,6 +7,7 @@ import { checkResearchDuplicate } from "./search.js";
 import { createUniqueStorageToken } from "../lib/storagePath.js";
 import { comparePaperFormats, formatSectionLabels } from "../lib/paperFormat.js";
 import { validateOcrResearchRecord } from "../lib/ocrValidation.js";
+import { readFileArrayBuffer } from "../lib/readFileArrayBuffer.js";
 
 /**
  * OCR Digitization Module
@@ -365,7 +366,7 @@ function isDocxFile(file) {
 
 async function pdfFileToPageImageFiles(file) {
   const { getDocument } = await getPdfJs();
-  const pdfData = await file.arrayBuffer();
+  const pdfData = await readFileArrayBuffer(file);
   const pdf = await getDocument({ data: pdfData }).promise;
   const pageFiles = [];
 

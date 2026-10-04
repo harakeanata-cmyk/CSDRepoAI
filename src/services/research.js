@@ -7,6 +7,7 @@ import { openResearchPreviewInNewTab } from "./paperPreview";
 import { normalizeResearchFileUrls } from "../lib/researchFilePreview";
 import { validateResearchUploadFiles } from "../lib/researchUploadValidation";
 import { classifyResearchDocument, DOCUMENT_CONFIDENCE } from "../lib/researchDocumentType";
+import { readFileArrayBuffer, sha256Hex } from "../lib/readFileArrayBuffer.js";
 
 function buildStoragePath(userId, file) {
   const originalName = file?.name || "upload";
@@ -45,12 +46,7 @@ function normalizeResearchKeywords(value) {
 
 async function getManuscriptSha256(file) {
   if (!file) return null;
-  if (!globalThis.crypto?.subtle) {
-    throw new Error("This browser cannot verify manuscript file duplicates. Use a current browser over HTTPS.");
-  }
-
-  const digest = await globalThis.crypto.subtle.digest("SHA-256", await file.arrayBuffer());
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return sha256Hex(await readFileArrayBuffer(file));
 }
 
 async function getStoredManuscriptSha256(fileUrl) {
@@ -63,8 +59,7 @@ async function getStoredManuscriptSha256(fileUrl) {
     hashes.push(await getManuscriptSha256(await response.blob()));
   }
   if (hashes.length === 1) return hashes[0];
-  const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(hashes.join("\n")));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return sha256Hex(new TextEncoder().encode(hashes.join("\n")));
 }
 
 async function assertManuscriptHashIsUnique(manuscriptSha256, excludePaperId = null) {

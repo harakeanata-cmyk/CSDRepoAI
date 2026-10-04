@@ -897,6 +897,9 @@ export default function Submit() {
 
 function Dropzone({ accept, slot, file, previousFile, onRemovePrevious, onChange, onError, error, check, confirmed, onConfirm, analysisMessage, analysisStatus, hint, required }) {
   function selectFiles(list) {
+    // Some mobile pickers return an empty list when dismissed; preserve the
+    // current selection instead of treating that as a request to remove it.
+    if (!list.length) return;
     if (list.length > 1) {
       onChange(null);
       onError("Only one file can be uploaded at a time. Please select one file.");

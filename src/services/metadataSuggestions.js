@@ -2,6 +2,7 @@ import { SDG_LIST } from "../lib/sdgList.js";
 import { toGenkitEndpoint } from "../lib/genkitUrl.js";
 import { getDocument, GlobalWorkerOptions, OPS } from "pdfjs-dist";
 import mammoth from "mammoth/mammoth.browser.js";
+import { readFileArrayBuffer } from "../lib/readFileArrayBuffer.js";
 
 const viteEnv = typeof import.meta !== "undefined" && import.meta.env ? import.meta.env : {};
 const GENKIT_METADATA_URL = viteEnv.VITE_GENKIT_METADATA_URL;
@@ -404,7 +405,7 @@ function normalizeMetadataPayload(payload) {
 
 async function extractPdfText(file) {
   await configurePdfWorker();
-  const data = await file.arrayBuffer();
+  const data = await readFileArrayBuffer(file);
   const pdf = await getDocument({ data }).promise;
   const pages = [];
   const pageLimit = pdf.numPages;
@@ -479,7 +480,7 @@ async function extractDocxText(file) {
 }
 
 export async function extractDocxTextWithFormatting(file) {
-  const arrayBuffer = await file.arrayBuffer();
+  const arrayBuffer = await readFileArrayBuffer(file);
   const [{ value }, { value: html }] = await Promise.all([
     mammoth.extractRawText({ arrayBuffer }),
     mammoth.convertToHtml({ arrayBuffer }),
