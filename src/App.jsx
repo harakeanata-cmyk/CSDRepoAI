@@ -115,6 +115,69 @@ function PortalNavigationLoader() {
   );
 }
 
+const PORTAL_NAMES = {
+  student: "Student Portal",
+  faculty: "Faculty Portal",
+  admin: "Administrator Portal",
+};
+
+function PortalWelcome() {
+  const location = useLocation();
+  const { profile, role, session, loading } = useAuth();
+  const [welcomeRole, setWelcomeRole] = useState(null);
+  const [isLeaving, setIsLeaving] = useState(false);
+  const lastPortalRole = useRef(null);
+  const timeoutRef = useRef(null);
+  const portalRole = location.pathname.match(/^\/(student|faculty|admin)(?:\/|$)/)?.[1] || null;
+  const firstName = profile?.first_name?.trim() || (!profile?.full_name?.includes("@") ? profile?.full_name?.trim().split(/\s+/)[0] : "");
+
+  useEffect(() => {
+    if (!portalRole) {
+      lastPortalRole.current = null;
+      clearTimeout(timeoutRef.current);
+      setIsLeaving(false);
+      setWelcomeRole(null);
+      return;
+    }
+
+    if (loading || !session || role !== portalRole || lastPortalRole.current === portalRole) return;
+
+    clearTimeout(timeoutRef.current);
+    lastPortalRole.current = portalRole;
+    setIsLeaving(false);
+    setWelcomeRole(portalRole);
+    const duration = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 240 : 720;
+    timeoutRef.current = window.setTimeout(() => {
+      setIsLeaving(true);
+      timeoutRef.current = window.setTimeout(() => setWelcomeRole(null), 140);
+    }, duration - 140);
+  }, [loading, location.pathname, portalRole, role, session]);
+
+  useEffect(() => () => clearTimeout(timeoutRef.current), []);
+
+  if (!welcomeRole || welcomeRole !== portalRole) return null;
+
+  return (
+    <div className={`portal-welcome-overlay${isLeaving ? " is-leaving" : ""}`} role="status" aria-live="polite" aria-label={`Welcome to the ${PORTAL_NAMES[welcomeRole]}`}>
+      <section className="portal-welcome-card" data-portal={welcomeRole}>
+        <div className="portal-welcome-art" aria-hidden="true">
+          <span className="portal-welcome-orbit portal-welcome-orbit-one" />
+          <span className="portal-welcome-orbit portal-welcome-orbit-two" />
+          <span className="portal-welcome-star portal-welcome-star-one" />
+          <span className="portal-welcome-star portal-welcome-star-two" />
+          <span className="portal-welcome-emblem"><img src="/logo.png" alt="" /></span>
+        </div>
+        <span className="portal-welcome-kicker">{PORTAL_NAMES[welcomeRole]} <span>·</span> CSDRepoAI</span>
+        <h1 className="portal-welcome-heading">
+          {firstName ? <>Welcome back,<br /><span>{firstName}.</span></> : <>Welcome to<br /><span>your workspace.</span></>}
+        </h1>
+        <p className="portal-welcome-message">Your research space is ready.</p>
+        <div className="portal-welcome-ready"><span /> Workspace ready</div>
+      </section>
+    </div>
+  );
+}
+
 function PersistentOCRScan() {
   const location = useLocation();
   const { role, session, loading, verifySession } = useAuth();
@@ -218,6 +281,7 @@ export default function App() {
         </Routes>
         <PersistentOCRScan />
         <PortalNavigationLoader />
+        <PortalWelcome />
       </BrowserRouter>
     </AuthProvider>
   );
