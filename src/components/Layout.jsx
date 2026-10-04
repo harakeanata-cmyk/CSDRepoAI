@@ -67,7 +67,8 @@ export default function Layout({ children }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState({});
   const sdgSubnavRef = useRef(null);
-  const sdgSubnavScrollTop = useRef(0);
+  const sdgScrollStorageKey = `csdrepoai-sdg-scroll:${role || "default"}`;
+  const sdgSubnavScrollTop = useRef(Number(sessionStorage.getItem(sdgScrollStorageKey)) || 0);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [logoutPending, setLogoutPending] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -283,7 +284,11 @@ export default function Layout({ children }) {
                     <div
                       className="sidebar-subnav"
                       ref={sdgSubnavRef}
-                      onScroll={(event) => { sdgSubnavScrollTop.current = event.currentTarget.scrollTop; }}
+                      onScroll={(event) => {
+                        const scrollTop = event.currentTarget.scrollTop;
+                        sdgSubnavScrollTop.current = scrollTop;
+                        sessionStorage.setItem(sdgScrollStorageKey, String(scrollTop));
+                      }}
                     >
                       {SDG_LIST.map((sdg) => (
                         <NavLink
