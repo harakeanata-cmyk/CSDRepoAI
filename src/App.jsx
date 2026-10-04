@@ -44,7 +44,7 @@ function PortalNavigationLoader() {
     const beginNavigation = (destination) => {
       clearPending();
       const navigation = { destination, startedAt: Date.now(), fallbackTimer: null, finishTimer: null };
-      navigation.fallbackTimer = window.setTimeout(clearPending, 5000);
+      navigation.fallbackTimer = window.setTimeout(clearPending, 3000);
       pendingNavigation.current = navigation;
       setIsLoading(true);
     };
@@ -83,7 +83,7 @@ function PortalNavigationLoader() {
     const currentLocation = `${location.pathname}${location.search}`;
     if (navigation.destination !== "history" && navigation.destination !== currentLocation) return undefined;
 
-    const remainingVisibleTime = Math.max(0, 320 - (Date.now() - navigation.startedAt));
+    const remainingVisibleTime = Math.max(0, 100 - (Date.now() - navigation.startedAt));
     navigation.finishTimer = window.setTimeout(() => {
       if (pendingNavigation.current === navigation) {
         clearTimeout(navigation.fallbackTimer);

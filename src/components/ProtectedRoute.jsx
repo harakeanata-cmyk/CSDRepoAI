@@ -21,12 +21,12 @@ export default function ProtectedRoute({ children, allowedRoles }) {
     let active = true;
     let pendingCheck = null;
 
-    async function checkCurrentSession() {
+    async function checkCurrentSession(force = false) {
       if (pendingCheck) return pendingCheck;
       const id = ++checkId.current;
       setChecking(true);
       setVerifiedLocation(null);
-      pendingCheck = verifySession();
+      pendingCheck = verifySession({ force });
       try {
         const valid = await pendingCheck;
         if (active && id === checkId.current) {
@@ -40,11 +40,11 @@ export default function ProtectedRoute({ children, allowedRoles }) {
     }
 
     function checkWhenVisible() {
-      if (document.visibilityState === "visible") void checkCurrentSession();
+      if (document.visibilityState === "visible") void checkCurrentSession(true);
     }
 
-    function checkOnPageShow() {
-      void checkCurrentSession();
+    function checkOnPageShow(event) {
+      if (event.persisted) void checkCurrentSession(true);
     }
 
     void checkCurrentSession();

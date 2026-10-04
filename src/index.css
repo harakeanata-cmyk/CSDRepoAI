@@ -2231,10 +2231,9 @@ table.admin-archive-table td:nth-child(7) { width: 8%; }
   z-index: 1200;
   display: grid;
   place-items: center;
-  background: rgba(20, 33, 61, 0.16);
-  backdrop-filter: blur(2px);
+  background: rgba(20, 33, 61, 0.06);
   pointer-events: none;
-  animation: portal-loader-appear 0.16s ease-out both;
+  animation: portal-loader-appear 0.08s ease-out both;
 }
 
 .portal-navigation-loader-card {
@@ -2249,7 +2248,7 @@ table.admin-archive-table td:nth-child(7) { width: 8%; }
   color: var(--ink-700);
   font-size: 13px;
   font-weight: 600;
-  animation: portal-loader-card-in 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: portal-loader-card-in 0.12s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 .portal-navigation-loader-mark {
@@ -2266,7 +2265,7 @@ table.admin-archive-table td:nth-child(7) { width: 8%; }
   width: 24px;
   height: 24px;
   object-fit: contain;
-  animation: portal-loader-pulse 1.2s ease-in-out infinite;
+  animation: portal-loader-pulse 0.8s ease-in-out infinite;
 }
 
 .portal-navigation-spinner {
@@ -2276,7 +2275,7 @@ table.admin-archive-table td:nth-child(7) { width: 8%; }
   border-top-color: var(--brass-600);
   border-right-color: var(--brass-300);
   border-radius: 50%;
-  animation: portal-loader-spin 0.8s linear infinite;
+  animation: portal-loader-spin 0.55s linear infinite;
 }
 
 @keyframes portal-loader-spin {
