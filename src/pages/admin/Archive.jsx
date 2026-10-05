@@ -61,10 +61,11 @@ export default function Archive() {
     return ["all", ...Array.from(set).sort().reverse()];
   }, [papers]);
 
-  const ocrCount = papers.filter((p) => p.source === "ocr_scanned").length;
+  const activePapers = papers.filter((paper) => paper.is_active !== false);
+  const ocrCount = activePapers.filter((p) => p.source === "ocr_scanned").length;
   const sourceCounts = {
-    all: papers.length,
-    digital: papers.length - ocrCount,
+    all: activePapers.length,
+    digital: activePapers.length - ocrCount,
     ocr_scanned: ocrCount,
   };
 
@@ -189,8 +190,8 @@ export default function Archive() {
       />
 
       <StatGrid>
-        <StatCard label="Total Records" value={papers.length} accent="brass" />
-        <StatCard label="Digital Submissions" value={papers.length - ocrCount} accent="info" />
+        <StatCard label="Active Records" value={activePapers.length} accent="brass" />
+        <StatCard label="Digital Submissions" value={activePapers.length - ocrCount} accent="info" />
         <StatCard label="OCR Scanned" value={ocrCount} accent="success" />
       </StatGrid>
 

@@ -13,11 +13,12 @@ export async function getAnalyticsSummary() {
     const papers = [];
     for (let from = 0; ; from += pageSize) {
       const fields = "id, title, status, academic_year, sdg_tags, program, keywords, view_count, download_count, created_at";
-      const { data, error } = await supabase
+      let request = supabase
         .from("research_papers")
         .select(includeActive ? `${fields}, is_active` : fields)
-        .order("id", { ascending: true })
-        .range(from, from + pageSize - 1);
+        .order("id", { ascending: true });
+      if (includeActive) request = request.eq("is_active", true);
+      const { data, error } = await request.range(from, from + pageSize - 1);
       if (error) throw error;
       papers.push(...(data || []));
       if (!data || data.length < pageSize) break;
