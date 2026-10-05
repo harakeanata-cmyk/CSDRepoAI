@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabaseClient";
+import { normalizeProgram } from "../lib/programs";
 
 /**
  * Research Analytics Dashboard Module
@@ -20,7 +21,10 @@ export async function getAnalyticsSummary() {
     if (!data || data.length < pageSize) break;
   }
 
-  return summarizeAnalytics(papers);
+  return summarizeAnalytics(papers.map((paper) => ({
+    ...paper,
+    program: normalizeProgram(paper.program),
+  })));
 }
 
 export function summarizeAnalytics(papers = []) {
