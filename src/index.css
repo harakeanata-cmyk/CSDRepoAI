@@ -2081,6 +2081,27 @@ table.archive-table tbody tr:hover {
   background: color-mix(in srgb, var(--brass-500) 12%, var(--surface-sunken));
 }
 
+.archive-title-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.archive-title-toggle svg { flex: 0 0 auto; transition: transform 160ms ease; }
+.archive-title-toggle svg.is-open { transform: rotate(180deg); }
+.archive-title-toggle:focus-visible { outline: 2px solid var(--brass-500); outline-offset: 3px; border-radius: 2px; }
+.archive-reviewer-row > td { background: var(--surface-sunken); }
+.archive-reviewer-details { display: flex; flex-wrap: wrap; gap: 28px; padding: 4px 0; }
+.archive-reviewer-details > div { display: grid; gap: 4px; min-width: min(100%, 220px); }
+.archive-reviewer-label { color: var(--ink-500); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+
 .admin-archive-table-wrap {
   overflow-x: auto;
 }

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { FileText, FolderOpen, Archive as ArchiveIcon, X } from "lucide-react";
+import { FileText, FolderOpen, Archive as ArchiveIcon, X, ChevronDown } from "lucide-react";
 import Layout from "../components/Layout";
 import { PageHeader, EmptyState } from "../components/ui";
 import { ensureApprovedResearchEmbeddings, getApprovedPapers, getResearchFileUrls } from "../services/research";
@@ -14,6 +14,7 @@ export default function Archive() {
   const [yearFilter, setYearFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [queryFilter, setQueryFilter] = useState("");
+  const [expandedPaperId, setExpandedPaperId] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Supports deep-linking from the faculty sidebar's "Browse by SDG" list,
@@ -82,8 +83,13 @@ export default function Archive() {
           </thead>
           <tbody>
             {records.map((p) => (
-              <tr key={p.id}>
-                <td style={{ fontWeight: 600, maxWidth: 280 }}>{p.title}</td>
+              <Fragment key={p.id}>
+              <tr>
+                <td style={{ fontWeight: 600, maxWidth: 280 }}>
+                  <button type="button" className="archive-title-toggle" aria-expanded={expandedPaperId === p.id} onClick={() => setExpandedPaperId((current) => current === p.id ? null : p.id)}>
+                    <span>{p.title}</span><ChevronDown size={15} className={expandedPaperId === p.id ? "is-open" : ""} />
+                  </button>
+                </td>
                 <td style={{ color: "var(--ink-500)" }}>{(p.authors || []).join(", ")}</td>
                 <td>{p.academic_year || "—"}</td>
                 <td>
@@ -120,6 +126,17 @@ export default function Archive() {
                   </div>
                 </td>
               </tr>
+              {expandedPaperId === p.id && (
+                <tr key={`${p.id}-reviewers`} className="archive-reviewer-row">
+                  <td colSpan={6}>
+                    <div className="archive-reviewer-details">
+                      <div><span className="archive-reviewer-label">Adviser</span><strong>{p.adviser?.trim() || "Not recorded"}</strong></div>
+                      <div><span className="archive-reviewer-label">Panel members</span><strong>{Array.isArray(p.panel_members) && p.panel_members.length ? p.panel_members.join(", ") : "Not recorded"}</strong></div>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              </Fragment>
             ))}
           </tbody>
         </table>
