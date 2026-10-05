@@ -68,6 +68,7 @@ async function assertManuscriptHashIsUnique(manuscriptSha256, excludePaperId = n
     .from("research_papers")
     .select("id")
     .eq("manuscript_sha256", manuscriptSha256)
+    .eq("is_active", true)
     .not("status", "in", "(rejected,student_editing,withdrawn)");
   if (excludePaperId) query = query.neq("id", excludePaperId);
 
@@ -141,7 +142,7 @@ export async function submitResearch({
 
   const { data: existingTitle, error: titleCheckError } = await supabase
     .from("research_papers")
-    .select("id, title, abstract, keywords, status")
+    .select("id, title, abstract, keywords, status, is_active")
     .ilike("title", titlePattern)
     .limit(500);
 
@@ -149,6 +150,8 @@ export async function submitResearch({
   const normalizedAbstract = normalizeResearchText(abstract);
   const normalizedKeywords = normalizeResearchKeywords(keywords);
   const duplicatePaper = (existingTitle || []).find((paper) => {
+    // Deactivated archive entries no longer block a fresh submission.
+    if (paper.is_active === false) return false;
     // A rejected submission is no longer an active duplicate. Students must
     // be able to correct and upload that work again for review.
     if (normalizeResearchText(paper.status) === "rejected") return false;

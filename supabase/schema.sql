@@ -170,6 +170,7 @@ drop index if exists idx_research_unique_normalized_title;
 create unique index if not exists idx_research_active_manuscript_sha256
   on research_papers (manuscript_sha256)
   where manuscript_sha256 is not null
+    and is_active = true
     and status not in ('rejected', 'student_editing', 'withdrawn');
 
 -- Full-text search support for the AI-Assisted Search module
@@ -467,15 +468,6 @@ create trigger academic_years_prevent_used_delete
   before delete on academic_years
   for each row execute function prevent_deleting_used_academic_year();
 
-create table if not exists system_evaluations (
-  id uuid primary key default gen_random_uuid(),
-  respondent_id uuid references profiles(id) on delete cascade not null unique,
-  sus_answers int[] not null,
-  iso_answers jsonb not null default '{}'::jsonb,
-  comments text,
-  created_at timestamptz default now()
-);
-
 -- 4. SDG REFERENCE TABLE (Sustainable Development Goals lookup)
 -- ---------------------------------------------------------
 create table if not exists sdg_list (
@@ -501,7 +493,6 @@ alter table research_papers enable row level security;
 alter table submission_logs enable row level security;
 alter table public_notifications enable row level security;
 alter table academic_years enable row level security;
-alter table system_evaluations enable row level security;
 alter table sdg_list enable row level security;
 
 -- Profiles: everyone signed in can read profiles (needed for names on papers),
@@ -582,18 +573,6 @@ drop policy if exists "academic_years_admin_manage" on academic_years;
 create policy "academic_years_admin_manage" on academic_years for all
   using (exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin'))
   with check (exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin'));
-
-drop policy if exists "evaluations_insert_own" on system_evaluations;
-create policy "evaluations_insert_own" on system_evaluations for insert
-  with check (respondent_id = auth.uid());
-
-drop policy if exists "evaluations_update_own" on system_evaluations;
-create policy "evaluations_update_own" on system_evaluations for update
-  using (respondent_id = auth.uid());
-
-drop policy if exists "evaluations_select_admin" on system_evaluations;
-create policy "evaluations_select_admin" on system_evaluations for select
-  using (exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin') or respondent_id = auth.uid());
 
 -- SDG reference list: static lookup data (17 fixed rows), safe for anyone
 -- to read. No insert/update/delete policy — only edited manually in the
