@@ -645,7 +645,11 @@ create policy "research_files_read" on storage.objects for select
 
 drop policy if exists "research_files_upload" on storage.objects;
 create policy "research_files_upload" on storage.objects for insert
-  with check (bucket_id = 'research-files' and auth.role() = 'authenticated');
+  with check (
+    bucket_id = 'research-files'
+    and auth.role() = 'authenticated'
+    and lower(storage.extension(name)) in ('pdf', 'docx', 'zip')
+  );
 
 drop policy if exists "research_files_admin_delete" on storage.objects;
 create policy "research_files_admin_delete" on storage.objects for delete
