@@ -959,7 +959,8 @@ function Dropzone({ accept, slot, file, previousFile, onRemovePrevious, onChange
           <span>{check.confidence >= DOCUMENT_CONFIDENCE.medium ? "Detected type" : "Possible document type"}: {check.type} ({Math.round(check.confidence * 100)}% — {confidenceLabel})</span>
           <span>Expected: {check.expectedType}</span>
           {previousFile && !file && <span>Saved result only; it will be checked again after you reselect the document.</span>}
-          {typeMismatch && check.confidence >= DOCUMENT_CONFIDENCE.rejectMismatch && <span>This document appears incompatible with this upload field and cannot be submitted.</span>}
+          {typeMismatch && check.confidence >= DOCUMENT_CONFIDENCE.medium && <span>The detected type differs from this field, but the classification is confident enough to submit.</span>}
+          {typeMismatch && check.confidence < DOCUMENT_CONFIDENCE.medium && <span>The document type could not be confirmed with enough confidence, so it cannot be submitted.</span>}
           {check.confidence < DOCUMENT_CONFIDENCE.medium && <span>Please verify that you selected the correct research document.</span>}
         </>}
       </div>

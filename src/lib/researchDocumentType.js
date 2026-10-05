@@ -1,4 +1,4 @@
-export const DOCUMENT_CONFIDENCE = { high: 0.9, medium: 0.7, rejectMismatch: 0.5 };
+export const DOCUMENT_CONFIDENCE = { high: 0.9, medium: 0.7 };
 
 const EXPECTED_DOCUMENT_TYPE = {
   manuscript: "Full Research Manuscript",
@@ -17,7 +17,7 @@ export function getExpectedDocumentType(slot) {
 
 export function getDocumentTypeMismatchError(detection, slot) {
   if (!detection?.type || detection.type === getExpectedDocumentType(slot)) return null;
-  if ((Number(detection.confidence) || 0) < DOCUMENT_CONFIDENCE.rejectMismatch) return null;
+  if ((Number(detection.confidence) || 0) >= DOCUMENT_CONFIDENCE.medium) return null;
   return `This file appears to be a ${detection.type} (${Math.round(detection.confidence * 100)}% confidence). The ${slot === "manuscript" ? "Manuscript" : slot.toUpperCase()} field requires ${getExpectedDocumentType(slot)}.`;
 }
 
