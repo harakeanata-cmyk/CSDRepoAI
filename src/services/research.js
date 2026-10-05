@@ -741,11 +741,19 @@ export function recordResearchDownload(paperId) {
 
 /** Submission Review and Approval Module: pending queue for admin */
 export async function getPendingSubmissions() {
-  const { data, error } = await supabase
-    .from("research_papers")
-    .select("*, profiles:submitted_by(full_name, student_number)")
-    .in("status", ["pending", "under_review", "student_editing"])
-    .order("created_at", { ascending: true });
+  const buildRequest = (filterActive) => {
+    let request = supabase
+      .from("research_papers")
+      .select("*, profiles:submitted_by(full_name, student_number)")
+      .in("status", ["pending", "under_review", "student_editing"])
+      .order("created_at", { ascending: true });
+    if (filterActive) request = request.eq("is_active", true);
+    return request;
+  };
+  let { data, error } = await buildRequest(true);
+  if (error && isMissingResearchActiveColumn(error)) {
+    ({ data, error } = await buildRequest(false));
+  }
   if (error) throw error;
   return data;
 }

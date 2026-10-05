@@ -9,16 +9,28 @@ import { normalizeProgram } from "../lib/programs";
  */
 export async function getAnalyticsSummary() {
   const pageSize = 1000;
-  const papers = [];
-  for (let from = 0; ; from += pageSize) {
-    const { data, error } = await supabase
-      .from("research_papers")
-      .select("id, title, status, academic_year, sdg_tags, program, keywords, view_count, download_count, created_at")
-      .order("id", { ascending: true })
-      .range(from, from + pageSize - 1);
-    if (error) throw error;
-    papers.push(...(data || []));
-    if (!data || data.length < pageSize) break;
+  const loadPapers = async (includeActive) => {
+    const papers = [];
+    for (let from = 0; ; from += pageSize) {
+      const fields = "id, title, status, academic_year, sdg_tags, program, keywords, view_count, download_count, created_at";
+      const { data, error } = await supabase
+        .from("research_papers")
+        .select(includeActive ? `${fields}, is_active` : fields)
+        .order("id", { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) throw error;
+      papers.push(...(data || []));
+      if (!data || data.length < pageSize) break;
+    }
+    return includeActive ? papers.filter((paper) => paper.is_active !== false) : papers;
+  };
+
+  let papers;
+  try {
+    papers = await loadPapers(true);
+  } catch (error) {
+    if (!isMissingResearchActiveColumn(error)) throw error;
+    papers = await loadPapers(false);
   }
 
   return summarizeAnalytics(papers.map((paper) => ({
@@ -27,7 +39,14 @@ export async function getAnalyticsSummary() {
   })));
 }
 
+function isMissingResearchActiveColumn(error) {
+  return error?.code === "42703"
+    || error?.code === "PGRST204"
+    || /is_active.*(column|schema cache)|column.*is_active/i.test(error?.message || "");
+}
+
 export function summarizeAnalytics(papers = []) {
+  papers = papers.filter((paper) => paper.is_active !== false);
   const totalSubmissions = papers.length;
   const approved = papers.filter((p) => p.status === "approved").length;
   const pending = papers.filter((p) => ["pending", "under_review", "student_editing"].includes(p.status)).length;
