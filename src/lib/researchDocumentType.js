@@ -1,4 +1,4 @@
-export const DOCUMENT_CONFIDENCE = { high: 0.9, medium: 0.7 };
+export const DOCUMENT_CONFIDENCE = { high: 0.9, medium: 0.7, rejectMismatch: 0.5 };
 
 const EXPECTED_DOCUMENT_TYPE = {
   manuscript: "Full Research Manuscript",
@@ -13,6 +13,12 @@ function countMatches(text, patterns) {
 
 export function getExpectedDocumentType(slot) {
   return EXPECTED_DOCUMENT_TYPE[slot] || "ZIP source-code archive";
+}
+
+export function getDocumentTypeMismatchError(detection, slot) {
+  if (!detection?.type || detection.type === getExpectedDocumentType(slot)) return null;
+  if ((Number(detection.confidence) || 0) < DOCUMENT_CONFIDENCE.rejectMismatch) return null;
+  return `This file appears to be a ${detection.type} (${Math.round(detection.confidence * 100)}% confidence). The ${slot === "manuscript" ? "Manuscript" : slot.toUpperCase()} field requires ${getExpectedDocumentType(slot)}.`;
 }
 
 // Content-based signals are intentionally conservative. A score is a calibrated
