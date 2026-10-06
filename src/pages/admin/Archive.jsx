@@ -61,10 +61,11 @@ export default function Archive() {
     return ["all", ...Array.from(set).sort().reverse()];
   }, [papers]);
 
-  const ocrCount = papers.filter((p) => p.source === "ocr_scanned").length;
+  const activePapers = papers.filter((paper) => paper.is_active !== false);
+  const ocrCount = activePapers.filter((p) => p.source === "ocr_scanned").length;
   const sourceCounts = {
-    all: papers.length,
-    digital: papers.length - ocrCount,
+    all: activePapers.length,
+    digital: activePapers.length - ocrCount,
     ocr_scanned: ocrCount,
   };
 
@@ -106,9 +107,11 @@ export default function Archive() {
               <Fragment key={p.id}>
               <tr>
                 <td data-label="Title" style={{ fontWeight: 600, maxWidth: 320 }}>
-                  <button type="button" className="archive-title-toggle" aria-expanded={expandedPaperId === p.id} onClick={() => setExpandedPaperId((current) => current === p.id ? null : p.id)}>
-                    <span>{p.title}</span><ChevronDown size={15} className={expandedPaperId === p.id ? "is-open" : ""} />
-                  </button>
+                  {p.source === "ocr_scanned" ? (
+                    <button type="button" className="archive-title-toggle" aria-expanded={expandedPaperId === p.id} onClick={() => setExpandedPaperId((current) => current === p.id ? null : p.id)}>
+                      <span>{p.title}</span><ChevronDown size={15} className={expandedPaperId === p.id ? "is-open" : ""} />
+                    </button>
+                  ) : p.title}
                 </td>
                 <td data-label="Authors" style={{ color: "var(--ink-500)" }}>{(p.authors || []).join(", ") || "—"}</td>
                 <td data-label="Year">{p.academic_year || "—"}</td>
@@ -162,7 +165,7 @@ export default function Archive() {
                   )}
                 </td>
               </tr>
-              {expandedPaperId === p.id && (
+              {p.source === "ocr_scanned" && expandedPaperId === p.id && (
                 <tr key={`${p.id}-reviewers`} className="archive-reviewer-row">
                   <td colSpan={7}>
                     <div className="archive-reviewer-details">
@@ -189,8 +192,8 @@ export default function Archive() {
       />
 
       <StatGrid>
-        <StatCard label="Total Records" value={papers.length} accent="brass" />
-        <StatCard label="Digital Submissions" value={papers.length - ocrCount} accent="info" />
+        <StatCard label="Active Records" value={activePapers.length} accent="brass" />
+        <StatCard label="Digital Submissions" value={activePapers.length - ocrCount} accent="info" />
         <StatCard label="OCR Scanned" value={ocrCount} accent="success" />
       </StatGrid>
 

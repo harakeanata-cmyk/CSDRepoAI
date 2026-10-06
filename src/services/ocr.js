@@ -577,6 +577,7 @@ export async function extractMetadata(rawText) {
   const parserText = stripPageMarkers(rawText);
   const cleanedText = parserText.replace(/__DOCX_(?:BOLD|ITALIC)__/g, "");
   const fallback = extractDocumentFields(parserText);
+  const cover = extractOcrCoverMetadata(rawText);
   const aiMetadata = await extractMetadataWithAI(cleanedText);
   const aiStatus = aiMetadata?.unavailable
     ? "not_configured"
@@ -586,26 +587,34 @@ export async function extractMetadata(rawText) {
         ? "ok"
         : "failed";
 
-  const fallbackAuthors = Array.isArray(fallback.authors) ? fallback.authors.filter(Boolean) : [];
-  const aiAuthors = Array.isArray(aiMetadata?.authors) ? aiMetadata.authors.filter(Boolean) : [];
-  const authors = (fallbackAuthors.length >= aiAuthors.length ? fallbackAuthors : aiAuthors).join(", ");
-
   const fallbackKeywords = String(fallback.keywords || "").trim();
   const aiKeywords = Array.isArray(aiMetadata?.keywords)
     ? aiMetadata.keywords.filter(Boolean).join(", ")
     : String(aiMetadata?.keywords || "").trim();
   const keywords = fallbackKeywords || aiKeywords;
 
-  const fallbackTitle = isUsableMetadataTitle(fallback.title) ? fallback.title : "";
+  const fallbackTitle = isUsableMetadataTitle(cover.title) ? cover.title
+    : isUsableMetadataTitle(fallback.title) ? fallback.title : "";
   const aiTitle = isUsableMetadataTitle(aiMetadata?.title) ? String(aiMetadata.title).trim() : "";
   const title = fallbackTitle || aiTitle;
+
+  // A short final title line (for example, "Vision Transformer") can look
+  // like a name to the generic metadata parser. Drop candidates that are
+  // already present in the title before choosing between local and AI names.
+  const fallbackAuthors = filterTitleOverlapAuthors(fallback.authors, title);
+  const aiAuthors = filterTitleOverlapAuthors(aiMetadata?.authors, title);
+  const coverAuthors = filterTitleOverlapAuthors(cover.authors, title);
+  const preferredAuthors = coverAuthors.length ? coverAuthors : fallbackAuthors;
+  const authors = (preferredAuthors.length >= aiAuthors.length ? preferredAuthors : aiAuthors).join(", ");
 
   const fallbackAbstract = String(fallback.abstract || "").trim();
   const aiAbstract = String(aiMetadata?.abstract || "").trim();
   const abstract = fallbackAbstract.length >= 80 ? fallbackAbstract : aiAbstract || fallbackAbstract;
-  const fallbackPanelMembers = Array.isArray(fallback.panelMembers) ? fallback.panelMembers : [];
+  const fallbackPanelMembers = cover.panelMembers.length
+    ? cover.panelMembers
+    : Array.isArray(fallback.panelMembers) ? fallback.panelMembers : [];
   const aiPanelMembers = Array.isArray(aiMetadata?.panelMembers) ? aiMetadata.panelMembers : [];
-  const excludedPanelMembers = new Set([fallback.adviser, aiMetadata?.adviser, ...fallbackAuthors, ...aiAuthors]
+  const excludedPanelMembers = new Set([fallback.adviser, cover.adviser, aiMetadata?.adviser, ...fallbackAuthors, ...cover.authors, ...aiAuthors]
     .map(normalizeOcrPersonName)
     .filter(Boolean));
   const combinedPanelMembers = [];
@@ -624,12 +633,158 @@ export async function extractMetadata(rawText) {
   return {
     title,
     authors,
-    adviser: String(fallback.adviser || aiMetadata?.adviser || "").trim(),
+    adviser: String(cover.adviser || fallback.adviser || aiMetadata?.adviser || "").trim(),
     panelMembers,
     abstract,
     keywords,
     aiStatus,
   };
+}
+
+// Some older thesis covers place the institution letterhead before the title,
+// list authors under "Presented by", and print adviser/panel roles below each
+// reviewer's name. Keep this recognition in the OCR archive flow so its layout
+// heuristics do not change metadata suggestions for digital submissions.
+function extractOcrCoverMetadata(rawText) {
+  const pageOneText = String(rawText || "").split(/-{2,}\s*Page\s+2\s*-{2,}/i)[0];
+  const lines = pageOneText
+    .split(/\r?\n/)
+    .map((line) => line.replace(/__DOCX_(?:BOLD|ITALIC)__/g, "").replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .filter((line) => !isOcrCoverNoiseLine(line));
+  const titleLines = [];
+  let startedTitle = false;
+
+  for (const line of lines) {
+    if (/^(?:in partial fulfillment|presented to|presented by|a thesis presented|a thesis submitted|abstract)\b/i.test(line)) {
+      if (startedTitle) break;
+      continue;
+    }
+    if (/^(?:JMJ Marist Brothers|Notre Dame of Marbel University|City of Koronadal\b|College of Engineering\b)/i.test(line)) continue;
+    if (isOcrCoverTitleLine(line)) {
+      titleLines.push(line);
+      startedTitle = true;
+      continue;
+    }
+    if (startedTitle) {
+      if (isOcrCoverPersonLine(line)) break;
+      if (/^(?:bachelor|master|degree|requirements?)\b/i.test(line)) break;
+      if (isOcrCoverTitleContinuation(line)) titleLines.push(line);
+      else break;
+    }
+  }
+
+  const title = titleLines.join(" ").replace(/\s+/g, " ").trim();
+  const authors = [];
+  const presentedByIndex = lines.findIndex((line) => /^presented\s+by\s*:?/i.test(line));
+  if (presentedByIndex >= 0) {
+    const inlineAuthors = lines[presentedByIndex].replace(/^presented\s+by\s*:?\s*/i, "");
+    authors.push(...extractCoverPeople(inlineAuthors));
+    for (let index = presentedByIndex + 1; index < lines.length && authors.length < 6; index += 1) {
+      const line = lines[index];
+      if (/^(?:march|april|may|june|july|august|september|october|november|december|january|february)\b/i.test(line)) break;
+      const people = extractCoverPeople(line);
+      if (!people.length) {
+        if (authors.length) break;
+        continue;
+      }
+      authors.push(...people);
+    }
+  }
+
+  let adviser = "";
+  for (let index = 0; index < lines.length; index += 1) {
+    const roleMatch = lines[index].match(/\b(?:thesis\s+)?advis[eo]r\b/i);
+    if (!roleMatch) continue;
+    const inlineName = lines[index].slice(0, roleMatch.index).replace(/[,:;\s-]+$/, "").trim();
+    adviser = extractCoverPeople(inlineName)[0] || extractCoverPeople(lines[index - 1] || "")[0] || "";
+    if (adviser) break;
+  }
+
+  const panelMembers = [];
+  const panelRole = /\b(?:panel\s*(?:member|chair(?:person|man|woman)?|of\s+examiners)|(?:chair|member)\s+of\s+(?:the\s+)?panel)\b/ig;
+  for (let index = 0; index < lines.length && panelMembers.length < 3; index += 1) {
+    const line = lines[index];
+    panelRole.lastIndex = 0;
+    const roles = [...line.matchAll(panelRole)];
+    if (!roles.length) continue;
+
+    const beforeRole = line.slice(0, roles[0].index).trim();
+    let candidates = extractCoverPeople(beforeRole);
+    if (!candidates.length) candidates = extractCoverPeople(lines[index - 1] || "");
+    if (roles.length > 1 && candidates.length < roles.length) {
+      const previous = lines[index - 1] || "";
+      const credentialChunks = previous.split(/\b(?:MIT|MSIT|MEP-?ECE|MSCE|Ph\.?D\.?)\b/ig);
+      candidates = credentialChunks.flatMap(extractCoverPeople);
+    }
+    panelMembers.push(...candidates);
+  }
+
+  const uniquePanelMembers = [...new Map(panelMembers
+    .filter((name) => normalizeOcrPersonName(name) !== normalizeOcrPersonName(adviser)
+      && !authors.some((author) => normalizeOcrPersonName(author) === normalizeOcrPersonName(name)))
+    .map((name) => [normalizeOcrPersonName(name), name])).values()].slice(0, 3);
+
+  return { title, authors: [...new Set(authors)].slice(0, 6), adviser, panelMembers: uniquePanelMembers };
+}
+
+function isOcrCoverTitleLine(line) {
+  if (isOcrCoverNoiseLine(line) || isOcrCoverPersonLine(line)) return false;
+  const letters = line.replace(/[^A-Za-z]/g, "");
+  const words = line.split(/\s+/).filter(Boolean);
+  return words.length >= 4 && letters.length >= 18
+    && !/\b(?:UNIVERSITY|COLLEGE|BROTHERS|KORONADAL|COTABATO|SOUTHCOTABATO|BACHELOR|MASTER|COMPUTER SCIENCE)\b/i.test(line);
+}
+
+function isOcrCoverTitleContinuation(line) {
+  return !isOcrCoverNoiseLine(line)
+    && !isOcrCoverPersonLine(line)
+    && !/^(?:bachelor|master|degree|requirements?|presented|abstract|keywords?|may|june|july|august|september|october|november|december|january|february|march|april)\b/i.test(line)
+    && !/\b(?:university|college|institute|computer science|accession|date acquired)\b/i.test(line)
+    && line.length >= 8;
+}
+
+function isOcrCoverPersonLine(line) {
+  // Names with a middle initial are common on these covers and distinguish
+  // the author/adviser block from the title's short continuation lines.
+  return /\b[A-Z]\.\s+[A-Z][A-Za-z'-]+\b/.test(line)
+    && line.split(/\s+/).length <= 8;
+}
+
+function isOcrCoverNoiseLine(line) {
+  return /\b(?:ndmu\s*[-–]?\s*ceac|(?:compl|compu)\w{1,}tary\s+copy|hard\s?bound|accession\s*(?:no\.?|number)|date\s+acquired|ndmu\s+library)\b/i.test(line);
+}
+
+function filterTitleOverlapAuthors(values, title) {
+  const candidates = Array.isArray(values) ? values : [];
+  const titleWords = new Set(String(title || "").toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) || []);
+  return candidates
+    .map((value) => String(value || "").replace(/\s+/g, " ").trim())
+    .filter((value) => {
+      if (!value) return false;
+      const words = value.toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) || [];
+      return words.length >= 2 && !words.every((word) => titleWords.has(word));
+    });
+}
+
+function extractCoverPeople(value) {
+  const cleaned = String(value || "")
+    .replace(/\b(?:presented\s+by|panel\s+(?:member|chair|chairperson)|adviser|advisor)\b/ig, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) return [];
+
+  // Degree suffixes often separate reviewer names printed on one line in
+  // multi-column scans, for example "... Insular, Jr., MIT Hajah T. Sueno, MSIT".
+  const chunks = cleaned.split(/\b(?:MIT|MSIT|MEP-?ECE|MSCE|Ph\.?D\.?)\b/ig).filter(Boolean);
+  const candidates = chunks.length > 1 ? chunks : [cleaned];
+  return candidates
+    .map((candidate) => candidate.replace(/\b(?:Engr\.?|Dr\.?|Mr\.?|Mrs\.?|Ms\.?)\b/ig, " ").replace(/[,:;]+/g, " ").replace(/\s+/g, " ").trim())
+    .filter((candidate) => {
+      const words = candidate.split(/\s+/).filter(Boolean);
+      return words.length >= 2 && words.length <= 6
+        && words.every((word) => /^[A-Z][A-Za-z.'-]*$/.test(word) || /^[A-Z]\.$/.test(word));
+    });
 }
 
 function normalizeOcrPersonName(value) {

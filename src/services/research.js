@@ -6,7 +6,7 @@ import { createUniqueStorageToken } from "../lib/storagePath.js";
 import { openResearchPreviewInNewTab } from "./paperPreview";
 import { normalizeResearchFileUrls } from "../lib/researchFilePreview";
 import { validateResearchUploadFiles } from "../lib/researchUploadValidation";
-import { classifyResearchDocument, DOCUMENT_CONFIDENCE } from "../lib/researchDocumentType";
+import { classifyResearchDocument, getDocumentTypeMismatchError } from "../lib/researchDocumentType";
 import { readFileArrayBuffer, sha256Hex } from "../lib/readFileArrayBuffer.js";
 
 function buildStoragePath(userId, file) {
@@ -44,6 +44,15 @@ function normalizeResearchKeywords(value) {
     .sort();
 }
 
+function assertDocumentTypesMatch(documentTexts = {}) {
+  for (const slot of ["manuscript", "ieee", "acm", "apa"]) {
+    const documentText = String(documentTexts[slot] || "");
+    if (!documentText.trim()) continue;
+    const mismatchError = getDocumentTypeMismatchError(classifyResearchDocument(documentText), slot);
+    if (mismatchError) throw new Error(mismatchError);
+  }
+}
+
 async function getManuscriptSha256(file) {
   if (!file) return null;
   return sha256Hex(await readFileArrayBuffer(file));
@@ -68,6 +77,7 @@ async function assertManuscriptHashIsUnique(manuscriptSha256, excludePaperId = n
     .from("research_papers")
     .select("id")
     .eq("manuscript_sha256", manuscriptSha256)
+    .eq("is_active", true)
     .not("status", "in", "(rejected,student_editing,withdrawn)");
   if (excludePaperId) query = query.neq("id", excludePaperId);
 
@@ -103,12 +113,12 @@ export async function submitResearch({
   category,
   manuscriptFile,
   manuscriptText,
+  documentTexts = {},
   manuscriptSource = "digital",
   sourceCodeFile,
   ieeeFile,
   acmFile,
   apaFile,
-  confirmDocumentTypeMismatch = false,
   userId,
 }) {
   validateResearchUploadFiles({
@@ -118,15 +128,7 @@ export async function submitResearch({
     acm: acmFile,
     apa: apaFile,
   });
-  if (manuscriptFile && manuscriptText) {
-    const detected = classifyResearchDocument(manuscriptText);
-    if (detected.type !== "Full Research Manuscript" && detected.confidence >= DOCUMENT_CONFIDENCE.high) {
-      throw new Error(`This file appears to be a ${detected.type} (${Math.round(detected.confidence * 100)}% confidence). The Manuscript field requires a full research manuscript.`);
-    }
-    if (detected.type !== "Full Research Manuscript" && detected.confidence >= DOCUMENT_CONFIDENCE.medium && !confirmDocumentTypeMismatch) {
-      throw new Error("The manuscript document type needs your confirmation before submission.");
-    }
-  }
+  assertDocumentTypesMatch({ ...documentTexts, manuscript: manuscriptText || documentTexts.manuscript });
 
   const normalizedTitle = title.trim().replace(/\s+/g, " ");
   if (!normalizedTitle) throw new Error("Research title is required.");
@@ -141,7 +143,7 @@ export async function submitResearch({
 
   const { data: existingTitle, error: titleCheckError } = await supabase
     .from("research_papers")
-    .select("id, title, abstract, keywords, status")
+    .select("id, title, abstract, keywords, status, is_active")
     .ilike("title", titlePattern)
     .limit(500);
 
@@ -149,6 +151,8 @@ export async function submitResearch({
   const normalizedAbstract = normalizeResearchText(abstract);
   const normalizedKeywords = normalizeResearchKeywords(keywords);
   const duplicatePaper = (existingTitle || []).find((paper) => {
+    // Deactivated archive entries no longer block a fresh submission.
+    if (paper.is_active === false) return false;
     // A rejected submission is no longer an active duplicate. Students must
     // be able to correct and upload that work again for review.
     if (normalizeResearchText(paper.status) === "rejected") return false;
@@ -274,6 +278,7 @@ export async function updateResearchSubmission({
   sdgTags,
   files = {},
   manuscriptText = "",
+  documentTexts = {},
   userId,
 }) {
   if (!paper || paper.status !== "student_editing") {
@@ -283,12 +288,7 @@ export async function updateResearchSubmission({
   const normalizedTitle = String(title || "").trim().replace(/\s+/g, " ");
   if (!normalizedTitle) throw new Error("Research title is required.");
   validateResearchUploadFiles(files);
-  if (files.manuscript && manuscriptText) {
-    const detected = classifyResearchDocument(manuscriptText);
-    if (detected.type !== "Full Research Manuscript" && detected.confidence >= DOCUMENT_CONFIDENCE.high) {
-      throw new Error(`This file appears to be a ${detected.type} (${Math.round(detected.confidence * 100)}% confidence). The Manuscript field requires a full research manuscript.`);
-    }
-  }
+  assertDocumentTypesMatch({ ...documentTexts, manuscript: manuscriptText || documentTexts.manuscript });
   const manuscriptSha256 = files.manuscript
     ? await assertManuscriptFileIsUnique(files.manuscript, paper.id)
     : paper.manuscript_sha256 || await getStoredManuscriptSha256(paper.file_url);
@@ -741,11 +741,19 @@ export function recordResearchDownload(paperId) {
 
 /** Submission Review and Approval Module: pending queue for admin */
 export async function getPendingSubmissions() {
-  const { data, error } = await supabase
-    .from("research_papers")
-    .select("*, profiles:submitted_by(full_name, student_number)")
-    .in("status", ["pending", "under_review", "student_editing"])
-    .order("created_at", { ascending: true });
+  const buildRequest = (filterActive) => {
+    let request = supabase
+      .from("research_papers")
+      .select("*, profiles:submitted_by(full_name, student_number)")
+      .in("status", ["pending", "under_review", "student_editing"])
+      .order("created_at", { ascending: true });
+    if (filterActive) request = request.eq("is_active", true);
+    return request;
+  };
+  let { data, error } = await buildRequest(true);
+  if (error && isMissingResearchActiveColumn(error)) {
+    ({ data, error } = await buildRequest(false));
+  }
   if (error) throw error;
   return data;
 }

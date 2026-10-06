@@ -33,8 +33,10 @@ TITLE PAGE (usually page 1):
 - If a line contains only "HARDBOUND", "HARDBOUND BAYAD", or a similar physical-copy label, skip it and continue looking for the actual research title.
 - The actual title may begin with the project or system name followed by a colon, such as "bayad: A Mobile-Based System...".
 - Immediately below the title, one or more author names appear, each typically on its own line, with NO "By:" or "Author(s):" prefix.
+- Some older cover pages place the authors later under a "Presented by:" caption, after the adviser and panel names. In that layout, take every researcher name under "Presented by" as an author and do not mistake the adviser or panel members above it for authors.
 - Below the authors, the university name and degree program usually appear.
-- An adviser's name sometimes appears near the bottom of this page, also unlabeled — but do not treat this as fully reliable; the Approval Sheet is the authoritative source for adviser identity.
+- An adviser's name sometimes appears near the bottom of this page, with the role caption "Adviser" or "Thesis Adviser" immediately below it. Panel reviewers may also appear on the cover, with "Panel Member" captions below their names. Extract names paired with these role captions even when there is no separate Approval Sheet.
+- If a separate Approval Sheet exists, it remains the authoritative source for adviser and panel identities; otherwise use the role captions on the title page.
 - The title MUST be drawn only from the DOCUMENT START section. Never use text from the approval-sheet or abstract sections as the title.
 - For DOCX files with no page separators, identify the title page by its sequence: full title block first, researcher names below it, then university/program/submission text. Stop the title before the first author or institution line, even when the title itself spans several paragraphs.
 - Never mistake a body-text sentence about weeks, timelines, ethics review, data collection procedures, methodology, or a data collection plan for the title. If the top of the document appears procedural, keep looking earlier in the DOCUMENT START section; if no credible title-page title is present, return an empty title instead of substituting unrelated body text.

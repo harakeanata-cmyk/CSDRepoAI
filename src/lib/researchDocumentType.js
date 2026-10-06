@@ -15,6 +15,12 @@ export function getExpectedDocumentType(slot) {
   return EXPECTED_DOCUMENT_TYPE[slot] || "ZIP source-code archive";
 }
 
+export function getDocumentTypeMismatchError(detection, slot) {
+  if (!detection?.type || detection.type === getExpectedDocumentType(slot)) return null;
+  if ((Number(detection.confidence) || 0) >= DOCUMENT_CONFIDENCE.medium) return null;
+  return `This file appears to be a ${detection.type} (${Math.round(detection.confidence * 100)}% confidence). The ${slot === "manuscript" ? "Manuscript" : slot.toUpperCase()} field requires ${getExpectedDocumentType(slot)}.`;
+}
+
 // Content-based signals are intentionally conservative. A score is a calibrated
 // evidence band, not an AI probability or a claim of certainty.
 export function classifyResearchDocument(documentText = "") {

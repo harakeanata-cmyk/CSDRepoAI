@@ -86,9 +86,11 @@ export default function Archive() {
               <Fragment key={p.id}>
               <tr>
                 <td style={{ fontWeight: 600, maxWidth: 280 }}>
-                  <button type="button" className="archive-title-toggle" aria-expanded={expandedPaperId === p.id} onClick={() => setExpandedPaperId((current) => current === p.id ? null : p.id)}>
-                    <span>{p.title}</span><ChevronDown size={15} className={expandedPaperId === p.id ? "is-open" : ""} />
-                  </button>
+                  {p.source === "ocr_scanned" ? (
+                    <button type="button" className="archive-title-toggle" aria-expanded={expandedPaperId === p.id} onClick={() => setExpandedPaperId((current) => current === p.id ? null : p.id)}>
+                      <span>{p.title}</span><ChevronDown size={15} className={expandedPaperId === p.id ? "is-open" : ""} />
+                    </button>
+                  ) : p.title}
                 </td>
                 <td style={{ color: "var(--ink-500)" }}>{(p.authors || []).join(", ")}</td>
                 <td>{p.academic_year || "—"}</td>
@@ -126,7 +128,7 @@ export default function Archive() {
                   </div>
                 </td>
               </tr>
-              {expandedPaperId === p.id && (
+              {p.source === "ocr_scanned" && expandedPaperId === p.id && (
                 <tr key={`${p.id}-reviewers`} className="archive-reviewer-row">
                   <td colSpan={6}>
                     <div className="archive-reviewer-details">

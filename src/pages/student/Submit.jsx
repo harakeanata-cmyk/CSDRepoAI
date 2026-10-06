@@ -24,7 +24,7 @@ import { wrapReceiptValue } from "../../lib/receiptFormatting";
 import { getAcademicYears } from "../../services/academicYears";
 import { useUnloadWarning } from "../../lib/useUnloadWarning";
 import { validateResearchUploadFile, MAX_RESEARCH_UPLOAD_SIZE_LABEL } from "../../lib/researchUploadValidation";
-import { classifyResearchDocument, getDocumentConfidenceLabel, getExpectedDocumentType, DOCUMENT_CONFIDENCE } from "../../lib/researchDocumentType";
+import { classifyResearchDocument, getDocumentConfidenceLabel, getDocumentTypeMismatchError, getExpectedDocumentType, DOCUMENT_CONFIDENCE } from "../../lib/researchDocumentType";
 import { analyzeSubmissionFileOnce, clearSubmissionDraft, loadSubmissionDraft, saveSubmissionDraft } from "../../lib/submissionDraftStore";
 
 function buildDefaultForm(profile) {
@@ -55,6 +55,7 @@ export default function Submit() {
   const [files, setFiles] = useState({ manuscript: null, sourceCode: null, ieee: null, acm: null, apa: null });
   const [detachedFiles, setDetachedFiles] = useState({});
   const [manuscriptText, setManuscriptText] = useState("");
+  const [documentTexts, setDocumentTexts] = useState({});
   const [manuscriptSource, setManuscriptSource] = useState("digital");
   const [status, setStatus] = useState("idle"); // idle | submitting | done | error
   const [errorMsg, setErrorMsg] = useState("");
@@ -63,7 +64,6 @@ export default function Submit() {
   const [documentAnalysis, setDocumentAnalysis] = useState({ status: "idle", message: "" });
   const [documentChecks, setDocumentChecks] = useState({});
   const [fileErrors, setFileErrors] = useState({});
-  const [typeConfirmations, setTypeConfirmations] = useState({});
   const analysisIds = useRef({});
   const [submittedPaper, setSubmittedPaper] = useState(null);
   const [academicYears, setAcademicYears] = useState([]);
@@ -108,7 +108,6 @@ export default function Submit() {
       setDocumentAnalysis(draft?.documentAnalysis || { status: "idle", message: "" });
       setDocumentChecks(draft?.documentChecks || {});
       setFileErrors(draft?.fileErrors || {});
-      setTypeConfirmations(draft?.typeConfirmations || {});
       setDraftSaveStatus(draft ? "restored" : "idle");
       draftRevision.current = draft ? `${draft.updatedAt}:${draft.writerId}` : null;
       setDraftStateOwner(ownerId);
@@ -143,7 +142,6 @@ export default function Submit() {
       documentAnalysis,
       documentChecks,
       fileErrors,
-      typeConfirmations,
     };
     // Persist each committed form state immediately. A debounce timer is cleared
     // when this route unmounts, which can lose an upload on a quick navigation.
@@ -160,7 +158,7 @@ export default function Submit() {
     });
   }, [
     user?.id, draftStateOwner, hasUnsavedSubmission, form, sdgTags, files, detachedFiles, manuscriptText, manuscriptSource,
-    status, errorMsg, suggestions, documentAnalysis, documentChecks, fileErrors, typeConfirmations,
+    status, errorMsg, suggestions, documentAnalysis, documentChecks, fileErrors,
   ]);
 
   useEffect(() => {
@@ -241,6 +239,7 @@ export default function Submit() {
   async function analyzeUploadedDocument(slot, file, analysisId) {
     if (!file) {
       setDocumentChecks((current) => { const next = { ...current }; delete next[slot]; return next; });
+      setDocumentTexts((current) => { const next = { ...current }; delete next[slot]; return next; });
       if (slot === "manuscript") {
         setManuscriptText("");
         setManuscriptSource("digital");
@@ -251,7 +250,6 @@ export default function Submit() {
 
     const expectedType = getExpectedDocumentType(slot);
     if (slot === "manuscript") setManuscriptSource("digital");
-    setTypeConfirmations((current) => ({ ...current, [slot]: false }));
     if (slot === "sourceCode") {
       setDocumentChecks((current) => ({ ...current, [slot]: { status: "valid", expectedType } }));
       return;
@@ -264,6 +262,7 @@ export default function Submit() {
       if (analysisIds.current[slot] !== analysisId) return;
       const classification = classifyResearchDocument(analysis.extractedText || "");
       setDocumentChecks((current) => ({ ...current, [slot]: { ...classification, status: "done", expectedType } }));
+      setDocumentTexts((current) => ({ ...current, [slot]: analysis.extractedText || "" }));
       if (slot !== "manuscript") return;
 
       setManuscriptText(analysis.extractedText || "");
@@ -287,6 +286,7 @@ export default function Submit() {
     } catch (error) {
       if (analysisIds.current[slot] !== analysisId) return;
       setDocumentChecks((current) => ({ ...current, [slot]: { type: "Unknown / Cannot Determine", confidence: 0.45, status: "done", expectedType } }));
+      setDocumentTexts((current) => ({ ...current, [slot]: "" }));
       if (slot === "manuscript") {
         setManuscriptText("");
         setManuscriptSource("digital");
@@ -309,7 +309,6 @@ export default function Submit() {
     setFiles((current) => ({ ...current, [slot]: file }));
     setDetachedFiles((current) => { const next = { ...current }; delete next[slot]; return next; });
     setFileErrors((current) => ({ ...current, [slot]: "" }));
-    if (!file) setTypeConfirmations((current) => ({ ...current, [slot]: false }));
     analyzeUploadedDocument(slot, file, nextAnalysisId(slot));
   }
 
@@ -332,6 +331,7 @@ export default function Submit() {
     setFiles({ manuscript: null, sourceCode: null, ieee: null, acm: null, apa: null });
     setDetachedFiles({});
     setManuscriptText("");
+    setDocumentTexts({});
     setManuscriptSource("digital");
     setStatus("idle");
     setErrorMsg("");
@@ -340,7 +340,6 @@ export default function Submit() {
     setDocumentAnalysis({ status: "idle", message: "" });
     setDocumentChecks({});
     setFileErrors({});
-    setTypeConfirmations({});
     setSubmittedPaper(null);
     setClearConfirmOpen(false);
   }
@@ -369,14 +368,10 @@ export default function Submit() {
         return;
       }
       if (file && check?.type && check.type !== check.expectedType) {
-        if (check.confidence >= DOCUMENT_CONFIDENCE.high) {
+        const mismatchError = getDocumentTypeMismatchError(check, slot);
+        if (mismatchError) {
           setStatus("error");
-          setErrorMsg(`This file appears to be a ${check.type} (${Math.round(check.confidence * 100)}% confidence). The ${slot === "manuscript" ? "Manuscript" : slot.toUpperCase()} field requires ${check.expectedType}.`);
-          return;
-        }
-        if (check.confidence >= DOCUMENT_CONFIDENCE.medium && !typeConfirmations[slot]) {
-          setStatus("error");
-          setErrorMsg(`Please confirm that the ${slot} document type is correct before submitting.`);
+          setErrorMsg(mismatchError);
           return;
         }
       }
@@ -404,8 +399,8 @@ export default function Submit() {
         category: suggestions?.category || "Computer Studies",
         manuscriptFile: files.manuscript,
         manuscriptText,
+        documentTexts,
         manuscriptSource,
-        confirmDocumentTypeMismatch: Boolean(typeConfirmations.manuscript),
         sourceCodeFile: files.sourceCode,
         ieeeFile: files.ieee,
         acmFile: files.acm,
@@ -705,10 +700,8 @@ export default function Submit() {
                   required={!files.ieee}
                   error={fileErrors.manuscript}
                   check={documentChecks.manuscript}
-                  confirmed={typeConfirmations.manuscript}
                   analysisMessage={documentAnalysis.message}
                   analysisStatus={documentAnalysis.status}
-                  onConfirm={(value) => setTypeConfirmations((current) => ({ ...current, manuscript: value }))}
                   onError={(message) => handleFileError("manuscript", message)}
                   onChange={(file) => handleFileChange("manuscript", file)}
                   hint="Full research paper, PDF or DOCX. Leave this empty to attach an IEEE version to an existing title."
@@ -737,8 +730,6 @@ export default function Submit() {
                   onRemovePrevious={() => handleFileChange("ieee", null)}
                   error={fileErrors.ieee}
                   check={documentChecks.ieee}
-                  confirmed={typeConfirmations.ieee}
-                  onConfirm={(value) => setTypeConfirmations((current) => ({ ...current, ieee: value }))}
                   onError={(message) => handleFileError("ieee", message)}
                   onChange={(file) => handleFileChange("ieee", file)}
                   hint="Optional — upload with the same title to attach it to an existing research record"
@@ -753,8 +744,6 @@ export default function Submit() {
                   onRemovePrevious={() => handleFileChange("acm", null)}
                   error={fileErrors.acm}
                   check={documentChecks.acm}
-                  confirmed={typeConfirmations.acm}
-                  onConfirm={(value) => setTypeConfirmations((current) => ({ ...current, acm: value }))}
                   onError={(message) => handleFileError("acm", message)}
                   onChange={(file) => handleFileChange("acm", file)}
                   hint="Optional — ACM conference-format paper"
@@ -769,8 +758,6 @@ export default function Submit() {
                   onRemovePrevious={() => handleFileChange("apa", null)}
                   error={fileErrors.apa}
                   check={documentChecks.apa}
-                  confirmed={typeConfirmations.apa}
-                  onConfirm={(value) => setTypeConfirmations((current) => ({ ...current, apa: value }))}
                   onError={(message) => handleFileError("apa", message)}
                   onChange={(file) => handleFileChange("apa", file)}
                   hint="Optional — APA academic paper"
@@ -895,7 +882,7 @@ export default function Submit() {
   );
 }
 
-function Dropzone({ accept, slot, file, previousFile, onRemovePrevious, onChange, onError, error, check, confirmed, onConfirm, analysisMessage, analysisStatus, hint, required }) {
+function Dropzone({ accept, slot, file, previousFile, onRemovePrevious, onChange, onError, error, check, analysisMessage, analysisStatus, hint, required }) {
   function selectFiles(list) {
     // Some mobile pickers return an empty list when dismissed; preserve the
     // current selection instead of treating that as a request to remove it.
@@ -972,13 +959,8 @@ function Dropzone({ accept, slot, file, previousFile, onRemovePrevious, onChange
           <span>{check.confidence >= DOCUMENT_CONFIDENCE.medium ? "Detected type" : "Possible document type"}: {check.type} ({Math.round(check.confidence * 100)}% — {confidenceLabel})</span>
           <span>Expected: {check.expectedType}</span>
           {previousFile && !file && <span>Saved result only; it will be checked again after you reselect the document.</span>}
-          {typeMismatch && check.confidence >= DOCUMENT_CONFIDENCE.high && <span>This document appears incompatible with this upload field. Please select the expected document.</span>}
-          {typeMismatch && check.confidence >= DOCUMENT_CONFIDENCE.medium && check.confidence < DOCUMENT_CONFIDENCE.high && (
-            <label style={{ display: "flex", gap: 7, alignItems: "flex-start" }}>
-              <input type="checkbox" checked={Boolean(confirmed)} onChange={(event) => onConfirm?.(event.target.checked)} />
-              I verified this document and want to continue.
-            </label>
-          )}
+          {typeMismatch && check.confidence >= DOCUMENT_CONFIDENCE.medium && <span>The detected type differs from this field, but the classification is confident enough to submit.</span>}
+          {typeMismatch && check.confidence < DOCUMENT_CONFIDENCE.medium && <span>The document type could not be confirmed with enough confidence, so it cannot be submitted.</span>}
           {check.confidence < DOCUMENT_CONFIDENCE.medium && <span>Please verify that you selected the correct research document.</span>}
         </>}
       </div>
