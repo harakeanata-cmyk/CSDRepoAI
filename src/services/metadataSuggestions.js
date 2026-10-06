@@ -152,6 +152,9 @@ const SDG_RULES = [
   { id: 11, terms: ["community", "city", "urban", "disaster", "transportation", "sustainable"] },
   { id: 12, terms: ["consumption", "waste", "recycling", "production", "resource"] },
   { id: 13, terms: ["climate", "environment", "carbon", "energy", "renewable", "pollution"] },
+  { id: 14, terms: ["ocean", "marine", "coastal", "sea life", "coral reef", "fisheries", "aquatic"] },
+  { id: 15, terms: ["biodiversity", "forest", "wildlife", "terrestrial", "ecosystem", "deforestation", "land degradation"] },
+  { id: 17, terms: ["partnership", "collaboration", "international cooperation", "multi-stakeholder", "development assistance", "global cooperation"] },
 ];
 
 function normalize(text) {

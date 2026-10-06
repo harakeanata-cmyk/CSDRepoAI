@@ -15,5 +15,8 @@ export const SDG_LIST = [
   { id: 11, title: "Sustainable Cities and Communities" },
   { id: 12, title: "Responsible Consumption and Production" },
   { id: 13, title: "Climate Action" },
+  { id: 14, title: "Life Below Water" },
+  { id: 15, title: "Life on Land" },
   { id: 16, title: "Peace, Justice and Strong Institutions" },
+  { id: 17, title: "Partnerships for the Goals" },
 ];
