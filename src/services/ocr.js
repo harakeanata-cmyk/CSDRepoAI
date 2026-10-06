@@ -587,11 +587,6 @@ export async function extractMetadata(rawText) {
         ? "ok"
         : "failed";
 
-  const fallbackAuthors = Array.isArray(fallback.authors) ? fallback.authors.filter(Boolean) : [];
-  const aiAuthors = Array.isArray(aiMetadata?.authors) ? aiMetadata.authors.filter(Boolean) : [];
-  const preferredAuthors = cover.authors.length ? cover.authors : fallbackAuthors;
-  const authors = (preferredAuthors.length >= aiAuthors.length ? preferredAuthors : aiAuthors).join(", ");
-
   const fallbackKeywords = String(fallback.keywords || "").trim();
   const aiKeywords = Array.isArray(aiMetadata?.keywords)
     ? aiMetadata.keywords.filter(Boolean).join(", ")
@@ -602,6 +597,15 @@ export async function extractMetadata(rawText) {
     : isUsableMetadataTitle(fallback.title) ? fallback.title : "";
   const aiTitle = isUsableMetadataTitle(aiMetadata?.title) ? String(aiMetadata.title).trim() : "";
   const title = fallbackTitle || aiTitle;
+
+  // A short final title line (for example, "Vision Transformer") can look
+  // like a name to the generic metadata parser. Drop candidates that are
+  // already present in the title before choosing between local and AI names.
+  const fallbackAuthors = filterTitleOverlapAuthors(fallback.authors, title);
+  const aiAuthors = filterTitleOverlapAuthors(aiMetadata?.authors, title);
+  const coverAuthors = filterTitleOverlapAuthors(cover.authors, title);
+  const preferredAuthors = coverAuthors.length ? coverAuthors : fallbackAuthors;
+  const authors = (preferredAuthors.length >= aiAuthors.length ? preferredAuthors : aiAuthors).join(", ");
 
   const fallbackAbstract = String(fallback.abstract || "").trim();
   const aiAbstract = String(aiMetadata?.abstract || "").trim();
@@ -646,7 +650,8 @@ function extractOcrCoverMetadata(rawText) {
   const lines = pageOneText
     .split(/\r?\n/)
     .map((line) => line.replace(/__DOCX_(?:BOLD|ITALIC)__/g, "").replace(/\s+/g, " ").trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((line) => !isOcrCoverNoiseLine(line));
   const titleLines = [];
   let startedTitle = false;
 
@@ -662,8 +667,9 @@ function extractOcrCoverMetadata(rawText) {
       continue;
     }
     if (startedTitle) {
+      if (isOcrCoverPersonLine(line)) break;
       if (/^(?:bachelor|master|degree|requirements?)\b/i.test(line)) break;
-      if (isOcrCoverTitleLine(line) || line.length > 45) titleLines.push(line);
+      if (isOcrCoverTitleContinuation(line)) titleLines.push(line);
       else break;
     }
   }
@@ -723,10 +729,42 @@ function extractOcrCoverMetadata(rawText) {
 }
 
 function isOcrCoverTitleLine(line) {
+  if (isOcrCoverNoiseLine(line) || isOcrCoverPersonLine(line)) return false;
   const letters = line.replace(/[^A-Za-z]/g, "");
   const words = line.split(/\s+/).filter(Boolean);
-  return words.length >= 4 && letters.length >= 18 && letters === letters.toUpperCase()
-    && !/\b(?:UNIVERSITY|COLLEGE|BROTHERS|KORONADAL|COTABATO|SOUTHCOTABATO)\b/i.test(line);
+  return words.length >= 4 && letters.length >= 18
+    && !/\b(?:UNIVERSITY|COLLEGE|BROTHERS|KORONADAL|COTABATO|SOUTHCOTABATO|BACHELOR|MASTER|COMPUTER SCIENCE)\b/i.test(line);
+}
+
+function isOcrCoverTitleContinuation(line) {
+  return !isOcrCoverNoiseLine(line)
+    && !isOcrCoverPersonLine(line)
+    && !/^(?:bachelor|master|degree|requirements?|presented|abstract|keywords?|may|june|july|august|september|october|november|december|january|february|march|april)\b/i.test(line)
+    && !/\b(?:university|college|institute|computer science|accession|date acquired)\b/i.test(line)
+    && line.length >= 8;
+}
+
+function isOcrCoverPersonLine(line) {
+  // Names with a middle initial are common on these covers and distinguish
+  // the author/adviser block from the title's short continuation lines.
+  return /\b[A-Z]\.\s+[A-Z][A-Za-z'-]+\b/.test(line)
+    && line.split(/\s+/).length <= 8;
+}
+
+function isOcrCoverNoiseLine(line) {
+  return /\b(?:ndmu\s*[-–]?\s*ceac|(?:compl|compu)\w{1,}tary\s+copy|hard\s?bound|accession\s*(?:no\.?|number)|date\s+acquired|ndmu\s+library)\b/i.test(line);
+}
+
+function filterTitleOverlapAuthors(values, title) {
+  const candidates = Array.isArray(values) ? values : [];
+  const titleWords = new Set(String(title || "").toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) || []);
+  return candidates
+    .map((value) => String(value || "").replace(/\s+/g, " ").trim())
+    .filter((value) => {
+      if (!value) return false;
+      const words = value.toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) || [];
+      return words.length >= 2 && !words.every((word) => titleWords.has(word));
+    });
 }
 
 function extractCoverPeople(value) {
