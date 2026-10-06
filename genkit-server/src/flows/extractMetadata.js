@@ -42,6 +42,7 @@ TITLE PAGE (usually page 1):
 - Never mistake a body-text sentence about weeks, timelines, ethics review, data collection procedures, methodology, or a data collection plan for the title. If the top of the document appears procedural, keep looking earlier in the DOCUMENT START section; if no credible title-page title is present, return an empty title instead of substituting unrelated body text.
 
 APPROVAL SHEET (usually page 2, titled "Approval Sheet"):
+- Extract panel names only when the OCR text visibly connects the name to a panel role or panel-members section. Copy each name as printed; do not correct, complete, or infer an unclear third name. Return fewer than three names when the source does not clearly support all three.
 - This page lists names followed immediately below (or beside) each name by a role caption, not a label before the name. Use fuzzy OCR-tolerant matching for captions such as "Thesis Adviser", "Thesis Advisor", "Thesis Advis0r", or similar spacing/spelling variants. The name attached to that caption is the adviser, and this section is authoritative over the title page.
 - Similarly, a name associated with "Panel Chair", "Panel Chairperson", "Chairperson", "Chairman", "Panel Member", or "Panel of Examiners" identifies a panel member. Approval sheets may place names and role captions in separate columns or put the caption before the name; pair each name with its nearest panel role. The chair is included in the three-person panelMembers list — do NOT confuse the chair with the adviser, authors, dean, or other signatories.
 

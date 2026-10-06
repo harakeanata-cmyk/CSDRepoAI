@@ -900,6 +900,9 @@ function handleFile(e) {
 
           <Field label={<span><Users size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Panel Members, including the chair (3 total; comma-separated)</span>}>
             <input className="input" value={meta.panelMembers} onChange={(e) => setMeta((m) => ({ ...m, panelMembers: e.target.value }))} />
+            <small style={{ display: "block", marginTop: 6, color: "var(--ink-500)", fontSize: 11 }}>
+              Verify each name against the approval sheet, especially names near the page edge or binding.
+            </small>
           </Field>
 
           <Field label={<span><Quote size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Abstract</span>}>

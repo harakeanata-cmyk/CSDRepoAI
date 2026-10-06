@@ -596,7 +596,7 @@ export async function extractMetadata(rawText) {
   const fallbackTitle = isUsableMetadataTitle(cover.title) ? cover.title
     : isUsableMetadataTitle(fallback.title) ? fallback.title : "";
   const aiTitle = isUsableMetadataTitle(aiMetadata?.title) ? String(aiMetadata.title).trim() : "";
-  const title = fallbackTitle || aiTitle;
+  const title = chooseMostCompleteOcrTitle(fallbackTitle, aiTitle);
 
   // A short final title line (for example, "Vision Transformer") can look
   // like a name to the generic metadata parser. Drop candidates that are
@@ -610,20 +610,25 @@ export async function extractMetadata(rawText) {
   const fallbackAbstract = String(fallback.abstract || "").trim();
   const aiAbstract = String(aiMetadata?.abstract || "").trim();
   const abstract = fallbackAbstract.length >= 80 ? fallbackAbstract : aiAbstract || fallbackAbstract;
-  const fallbackPanelMembers = cover.panelMembers.length
-    ? cover.panelMembers
-    : Array.isArray(fallback.panelMembers) ? fallback.panelMembers : [];
+  const approvalPanelMembers = extractOcrApprovalPanelMembers(rawText);
+  const fallbackPanelMembers = [
+    ...approvalPanelMembers,
+    ...(Array.isArray(fallback.panelMembers) ? fallback.panelMembers : []),
+    ...cover.panelMembers,
+  ];
   const aiPanelMembers = Array.isArray(aiMetadata?.panelMembers) ? aiMetadata.panelMembers : [];
   const excludedPanelMembers = new Set([fallback.adviser, cover.adviser, aiMetadata?.adviser, ...fallbackAuthors, ...cover.authors, ...aiAuthors]
     .map(normalizeOcrPersonName)
     .filter(Boolean));
   const combinedPanelMembers = [];
   const seenPanelMembers = new Set();
-  // Prefer role-aware AI extraction when both sources disagree; use local
-  // parsing to fill any missing places without repeating authors or adviser.
-  for (const member of [...aiPanelMembers, ...fallbackPanelMembers]) {
+  // Prefer names tied to a panel caption by local parsing. AI can fill gaps
+  // only when its spelling is supported by the scanned text, which prevents
+  // a plausible-looking but invented third panel member from being archived.
+  for (const member of [...fallbackPanelMembers, ...aiPanelMembers]) {
     const cleanedMember = String(member || "").replace(/\s+/g, " ").trim();
     const normalizedMember = normalizeOcrPersonName(cleanedMember);
+    if (aiPanelMembers.includes(member) && !isOcrNameSupported(cleanedMember, cleanedText)) continue;
     if (!cleanedMember || !normalizedMember || excludedPanelMembers.has(normalizedMember) || seenPanelMembers.has(normalizedMember)) continue;
     seenPanelMembers.add(normalizedMember);
     combinedPanelMembers.push(cleanedMember);
@@ -639,6 +644,41 @@ export async function extractMetadata(rawText) {
     keywords,
     aiStatus,
   };
+}
+
+function chooseMostCompleteOcrTitle(localTitle, aiTitle) {
+  if (!localTitle) return aiTitle;
+  if (!aiTitle) return localTitle;
+
+  const localWords = String(localTitle).toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) || [];
+  const aiWords = String(aiTitle).toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) || [];
+  if (aiWords.length <= localWords.length || aiWords.length > 24) return localTitle;
+
+  // Prefer the AI reconstruction when it extends the local title fragment;
+  // otherwise keep the title-page parser's higher-confidence result.
+  let matched = 0;
+  let cursor = 0;
+  for (const word of localWords) {
+    const foundAt = aiWords.indexOf(word, cursor);
+    if (foundAt >= 0) {
+      matched += 1;
+      cursor = foundAt + 1;
+    }
+  }
+  return matched / Math.max(localWords.length, 1) >= 0.7 ? aiTitle : localTitle;
+}
+
+function isOcrNameSupported(name, documentText) {
+  const nameWords = normalizeOcrPersonName(name).split(/\s+/).filter((word) => word.length > 1);
+  const documentWords = new Set(normalizeOcrPersonName(documentText).split(/\s+/).filter(Boolean));
+  return nameWords.length >= 2 && nameWords.filter((word) => documentWords.has(word)).length >= 2;
+}
+
+function extractOcrApprovalPanelMembers(rawText) {
+  const pages = String(rawText || "").split(/-{2,}\s*Page\s+\d+\s*-{2,}/i);
+  const approvalPage = pages.slice(1).find((page) => /approval\s*sheet|panel\s*(?:chair|members?|ists?|of\s+examiners)/i.test(page));
+  if (!approvalPage) return [];
+  return extractDocumentFields(approvalPage).panelMembers || [];
 }
 
 // Some older thesis covers place the institution letterhead before the title,
