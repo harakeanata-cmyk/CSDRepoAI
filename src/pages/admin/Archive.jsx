@@ -107,9 +107,11 @@ export default function Archive() {
               <Fragment key={p.id}>
               <tr>
                 <td data-label="Title" style={{ fontWeight: 600, maxWidth: 320 }}>
-                  <button type="button" className="archive-title-toggle" aria-expanded={expandedPaperId === p.id} onClick={() => setExpandedPaperId((current) => current === p.id ? null : p.id)}>
-                    <span>{p.title}</span><ChevronDown size={15} className={expandedPaperId === p.id ? "is-open" : ""} />
-                  </button>
+                  {p.source === "ocr_scanned" ? (
+                    <button type="button" className="archive-title-toggle" aria-expanded={expandedPaperId === p.id} onClick={() => setExpandedPaperId((current) => current === p.id ? null : p.id)}>
+                      <span>{p.title}</span><ChevronDown size={15} className={expandedPaperId === p.id ? "is-open" : ""} />
+                    </button>
+                  ) : p.title}
                 </td>
                 <td data-label="Authors" style={{ color: "var(--ink-500)" }}>{(p.authors || []).join(", ") || "—"}</td>
                 <td data-label="Year">{p.academic_year || "—"}</td>
@@ -163,7 +165,7 @@ export default function Archive() {
                   )}
                 </td>
               </tr>
-              {expandedPaperId === p.id && (
+              {p.source === "ocr_scanned" && expandedPaperId === p.id && (
                 <tr key={`${p.id}-reviewers`} className="archive-reviewer-row">
                   <td colSpan={7}>
                     <div className="archive-reviewer-details">
