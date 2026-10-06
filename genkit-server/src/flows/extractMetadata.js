@@ -33,6 +33,7 @@ TITLE PAGE (usually page 1):
 - If a line contains only "HARDBOUND", "HARDBOUND BAYAD", or a similar physical-copy label, skip it and continue looking for the actual research title.
 - The actual title may begin with the project or system name followed by a colon, such as "bayad: A Mobile-Based System...".
 - Immediately below the title, one or more author names appear, each typically on its own line, with NO "By:" or "Author(s):" prefix.
+- Preserve every readable part of each person's name in authors, adviser, and panelMembers: first name, all middle names or initials, and last name, in the printed order. Never shorten a full printed name to first name plus surname, and never invent a missing middle name.
 - Some older cover pages place the authors later under a "Presented by:" caption, after the adviser and panel names. In that layout, take every researcher name under "Presented by" as an author and do not mistake the adviser or panel members above it for authors.
 - Below the authors, the university name and degree program usually appear.
 - An adviser's name sometimes appears near the bottom of this page, with the role caption "Adviser" or "Thesis Adviser" immediately below it. Panel reviewers may also appear on the cover, with "Panel Member" captions below their names. Extract names paired with these role captions even when there is no separate Approval Sheet.
@@ -67,6 +68,7 @@ Rules:
 - Include the Panel Chair in "panelMembers": the chair counts as one of the three panel members, not as a separate fourth role. Treat captions such as "Panel Chairperson", "Chairperson", or "Chairman" as chair roles too. Extract the chair and the other two panel members when all three are shown. A name may appear immediately before or after its role caption, in a separate column beside the caption, or under a "Panelists"/"Panel Members"/"Panel of Examiners" heading. Pair names with the nearest panel-role caption and return each person once. Exclude the adviser, authors, dean, secretary, and other signatories. Never invent a missing name.
 - Do not include panel chair or panel members in "authors" or "adviser" — they are separate roles.
 - "authors" must include ALL names credited as the researchers/writers of the thesis on the title page, not just the first name — not the adviser, panel, or dean.
+- Copy each author's and panel member's full printed name, including the middle name or middle initial when present. Keep each full name as one array item even when OCR wraps it across lines.
 - If fields or names are concatenated with only a plain space and no delimiter, split them using the expected structural patterns. For example, split "Chrissandra Marchelle L. Bautista Crislyn Joy D. Delgado" into the two authors "Chrissandra Marchelle L. Bautista" and "Crislyn Joy D. Delgado".
 - If a field cannot be confidently identified, return an empty string (or empty array for authors/keywords) rather than guessing or using a filename.
 - Extract only information supported by the supplied document context. Never invent, autocomplete, or substitute metadata from general knowledge.

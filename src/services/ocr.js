@@ -604,8 +604,9 @@ export async function extractMetadata(rawText) {
   const fallbackAuthors = filterTitleOverlapAuthors(fallback.authors, title);
   const aiAuthors = filterTitleOverlapAuthors(aiMetadata?.authors, title);
   const coverAuthors = filterTitleOverlapAuthors(cover.authors, title);
-  const preferredAuthors = coverAuthors.length ? coverAuthors : fallbackAuthors;
-  const authors = (preferredAuthors.length >= aiAuthors.length ? preferredAuthors : aiAuthors).join(", ");
+  const localAuthors = mergeOcrPeople(coverAuthors, fallbackAuthors, 6);
+  const supportedAiAuthors = aiAuthors.filter((author) => isOcrNameSupported(author, cleanedText));
+  const authors = mergeOcrPeople(localAuthors, supportedAiAuthors, 6, true).join(", ");
 
   const fallbackAbstract = String(fallback.abstract || "").trim();
   const aiAbstract = String(aiMetadata?.abstract || "").trim();
@@ -617,22 +618,16 @@ export async function extractMetadata(rawText) {
     ...cover.panelMembers,
   ];
   const aiPanelMembers = Array.isArray(aiMetadata?.panelMembers) ? aiMetadata.panelMembers : [];
-  const excludedPanelMembers = new Set([fallback.adviser, cover.adviser, aiMetadata?.adviser, ...fallbackAuthors, ...cover.authors, ...aiAuthors]
-    .map(normalizeOcrPersonName)
+  const excludedPanelMembers = new Set([fallback.adviser, cover.adviser, aiMetadata?.adviser, ...localAuthors, ...supportedAiAuthors]
+    .map(personNameIdentityKey)
     .filter(Boolean));
-  const combinedPanelMembers = [];
-  const seenPanelMembers = new Set();
   // Prefer names tied to a panel caption by local parsing. AI can fill gaps
   // only when its spelling is supported by the scanned text, which prevents
   // a plausible-looking but invented third panel member from being archived.
-  for (const member of [...fallbackPanelMembers, ...aiPanelMembers]) {
-    const cleanedMember = String(member || "").replace(/\s+/g, " ").trim();
-    const normalizedMember = normalizeOcrPersonName(cleanedMember);
-    if (aiPanelMembers.includes(member) && !isOcrNameSupported(cleanedMember, cleanedText)) continue;
-    if (!cleanedMember || !normalizedMember || excludedPanelMembers.has(normalizedMember) || seenPanelMembers.has(normalizedMember)) continue;
-    seenPanelMembers.add(normalizedMember);
-    combinedPanelMembers.push(cleanedMember);
-  }
+  const supportedAiPanelMembers = aiPanelMembers.filter((member) => isOcrNameSupported(member, cleanedText));
+  const combinedPanelMembers = mergeOcrPeople(fallbackPanelMembers, supportedAiPanelMembers, 6, true)
+    .filter((member) => !excludedPanelMembers.has(personNameIdentityKey(member)))
+    .slice(0, 3);
   const panelMembers = combinedPanelMembers.slice(0, 3).join(", ");
 
   return {
@@ -672,6 +667,69 @@ function isOcrNameSupported(name, documentText) {
   const nameWords = normalizeOcrPersonName(name).split(/\s+/).filter((word) => word.length > 1);
   const documentWords = new Set(normalizeOcrPersonName(documentText).split(/\s+/).filter(Boolean));
   return nameWords.length >= 2 && nameWords.filter((word) => documentWords.has(word)).length >= 2;
+}
+
+function mergeOcrPeople(primary, additions, limit, coalesceNameParts = false) {
+  let result = [];
+  const indexes = new Map();
+  for (const value of [...(primary || []), ...(additions || [])]) {
+    const person = String(value || "").replace(/\s+/g, " ").trim();
+    const identity = personNameIdentityKey(person);
+    if (!identity) continue;
+
+    const partialIndexes = [];
+    if (coalesceNameParts) {
+      for (let index = 0; index < result.length; index += 1) {
+        if (isPersonNamePart(result[index], person)) partialIndexes.push(index);
+      }
+    }
+    if (partialIndexes.length) {
+      const firstPartialIndex = Math.min(...partialIndexes);
+      result = result.filter((_, index) => !partialIndexes.includes(index));
+      result.splice(Math.min(firstPartialIndex, result.length), 0, person);
+      indexes.clear();
+      result.forEach((entry, index) => indexes.set(personNameIdentityKey(entry), index));
+      continue;
+    }
+    if (coalesceNameParts && result.some((entry) => isPersonNamePart(person, entry))) continue;
+
+    const existingIndex = indexes.get(identity);
+    if (existingIndex === undefined) {
+      indexes.set(identity, result.length);
+      result.push(person);
+    } else if (personNameCompleteness(person) > personNameCompleteness(result[existingIndex])) {
+      result[existingIndex] = person;
+    }
+  }
+  return result.slice(0, limit);
+}
+
+function isPersonNamePart(part, fullName) {
+  const partWords = getPersonNameWords(part);
+  const fullWords = getPersonNameWords(fullName);
+  if (partWords.length < 2 || fullWords.length <= partWords.length) return false;
+  let cursor = 0;
+  for (const word of partWords) {
+    const foundAt = fullWords.indexOf(word, cursor);
+    if (foundAt < 0) return false;
+    cursor = foundAt + 1;
+  }
+  return true;
+}
+
+function getPersonNameWords(value) {
+  return normalizeOcrPersonName(value)
+    .split(/\s+/)
+    .filter((word) => word.length > 1 && !/^(?:jr|sr|ii|iii|iv|v)$/.test(word));
+}
+
+function personNameIdentityKey(value) {
+  const words = getPersonNameWords(value);
+  return words.length >= 2 ? `${words[0]} ${words[words.length - 1]}` : "";
+}
+
+function personNameCompleteness(value) {
+  return getPersonNameWords(value).length;
 }
 
 function extractOcrApprovalPanelMembers(rawText) {
@@ -831,7 +889,9 @@ function normalizeOcrPersonName(value) {
   return String(value || "")
     .toLowerCase()
     .replace(/\b(?:engr|dr|mr|mrs|ms|mit|msit|mep-ece|msce)\b\.?/g, "")
-    .replace(/[^a-z]+/g, " ")
+    .normalize("NFKD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[^\p{L}]+/gu, " ")
     .trim();
 }
 

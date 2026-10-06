@@ -892,6 +892,9 @@ function handleFile(e) {
           <div className="ocr-field-grid">
             <Field label={<span><Users size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Authors (comma-separated)</span>}>
               <input className="input" value={meta.authors} onChange={handleAuthorsChange} required />
+              <small style={{ display: "block", marginTop: 6, color: "var(--ink-500)", fontSize: 11 }}>
+                Keep each author's full printed name, including the middle name or initial.
+              </small>
             </Field>
             <Field label={<span><GraduationCap size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Adviser</span>}>
               <input className="input" value={meta.adviser} onChange={(e) => setMeta((m) => ({ ...m, adviser: e.target.value }))} />
@@ -901,7 +904,7 @@ function handleFile(e) {
           <Field label={<span><Users size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Panel Members, including the chair (3 total; comma-separated)</span>}>
             <input className="input" value={meta.panelMembers} onChange={(e) => setMeta((m) => ({ ...m, panelMembers: e.target.value }))} />
             <small style={{ display: "block", marginTop: 6, color: "var(--ink-500)", fontSize: 11 }}>
-              Verify each name against the approval sheet, especially names near the page edge or binding.
+              Keep each full printed name, including the middle name or initial, and verify it against the approval sheet.
             </small>
           </Field>
 
