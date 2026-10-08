@@ -7,24 +7,34 @@ import { normalizeProgram } from "../lib/programs";
  * scale (hundreds to a few thousand papers). For a much larger dataset you'd
  * move these aggregations into Postgres views/RPC functions instead.
  */
-export async function getAnalyticsSummary() {
-  const pageSize = 1000;
-  const papers = [];
-  for (let from = 0; ; from += pageSize) {
-    const { data, error } = await supabase
-      .from("research_papers")
-      .select("id, title, status, academic_year, sdg_tags, program, keywords, view_count, download_count, created_at, source, is_active")
-      .eq("is_active", true)
-      .order("id", { ascending: true })
-      .range(from, from + pageSize - 1);
-    if (error) {
-      if (isMissingResearchActiveColumn(error)) {
-        throw new Error("Research Analytics requires the active-record migration. Apply supabase/migrations/20261002000300_preserve_research_papers.sql so inactive papers are excluded accurately.");
+export async function getAnalyticsSummary(accessToken) {
+  let papers;
+  if (import.meta.env.PROD) {
+    const response = await fetch("/api/admin/analytics", {
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || "Unable to load stored research papers.");
+    papers = payload.papers || [];
+  } else {
+    const pageSize = 1000;
+    papers = [];
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await supabase
+        .from("research_papers")
+        .select("id, title, status, academic_year, sdg_tags, program, keywords, view_count, download_count, created_at, source, is_active")
+        .eq("is_active", true)
+        .order("id", { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) {
+        if (isMissingResearchActiveColumn(error)) {
+          throw new Error("Research Analytics requires the active-record migration. Apply supabase/migrations/20261002000300_preserve_research_papers.sql so inactive papers are excluded accurately.");
+        }
+        throw error;
       }
-      throw error;
+      papers.push(...(data || []));
+      if (!data || data.length < pageSize) break;
     }
-    papers.push(...(data || []));
-    if (!data || data.length < pageSize) break;
   }
 
   return summarizeAnalytics(papers.map((paper) => ({

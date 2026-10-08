@@ -13,7 +13,7 @@ const BAR_COLORS = { total: "var(--analytics-total)", published: "var(--analytic
 const LEGEND_STYLE = { fontSize: 12, color: "var(--ink-700)" };
 
 export default function Analytics() {
-  const { role } = useAuth();
+  const { role, session } = useAuth();
   const [data, setData] = useState(null);
   const [users, setUsers] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -29,7 +29,7 @@ export default function Analytics() {
       const currentSequence = ++refreshSequence;
       try {
         const [summary, userStats] = await Promise.all([
-          getAnalyticsSummary(),
+          getAnalyticsSummary(session?.access_token),
           role === "admin" ? getUserAnalytics() : Promise.resolve(null),
         ]);
         if (!active || currentSequence !== refreshSequence) return;
@@ -63,7 +63,7 @@ export default function Analytics() {
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [role]);
+  }, [role, session?.access_token]);
 
   const schoolYears = useMemo(() => [...new Set(
     (data?.rawPapers || []).map((paper) => normalizeAcademicYear(paper.academic_year)).filter(Boolean),

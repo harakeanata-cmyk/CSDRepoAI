@@ -83,6 +83,108 @@ app.get("/api/admin/users", async (req, res) => {
   }
 });
 
+function getResearchStoragePaths(fileUrl) {
+  const values = Array.isArray(fileUrl) ? fileUrl : (() => {
+    try {
+      const parsed = JSON.parse(fileUrl);
+      return Array.isArray(parsed) ? parsed : [fileUrl];
+    } catch {
+      return [fileUrl];
+    }
+  })();
+  const marker = "/storage/v1/object/public/research-files/";
+  const supabaseOrigin = new URL(process.env.SUPABASE_URL).origin;
+
+  return values.map((value) => {
+    try {
+      const url = new URL(value);
+      if (url.origin !== supabaseOrigin) return null;
+      const markerIndex = url.pathname.indexOf(marker);
+      return markerIndex >= 0 ? decodeURIComponent(url.pathname.slice(markerIndex + marker.length)) : null;
+    } catch {
+      return null;
+    }
+  }).filter(Boolean);
+}
+
+async function getActivePapersWithStoredManuscripts() {
+  const papers = [];
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabaseAdmin
+      .from("research_papers")
+      .select("id, title, status, academic_year, sdg_tags, program, keywords, view_count, download_count, created_at, source, file_url, is_active")
+      .eq("is_active", true)
+      .order("id", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    papers.push(...(data || []));
+    if (!data || data.length < pageSize) break;
+  }
+
+  const expectedByFolder = new Map();
+  for (const paper of papers) {
+    for (const storagePath of getResearchStoragePaths(paper.file_url)) {
+      const separator = storagePath.lastIndexOf("/");
+      const folder = separator < 0 ? "" : storagePath.slice(0, separator);
+      const name = separator < 0 ? storagePath : storagePath.slice(separator + 1);
+      const expected = expectedByFolder.get(folder) || new Set();
+      expected.add(name);
+      expectedByFolder.set(folder, expected);
+    }
+  }
+
+  const storedPaths = new Set();
+  const folders = [...expectedByFolder.entries()];
+  for (let index = 0; index < folders.length; index += 8) {
+    await Promise.all(folders.slice(index, index + 8).map(async ([folder, expectedNames]) => {
+      for (let offset = 0; ; offset += pageSize) {
+        const { data, error } = await supabaseAdmin.storage
+          .from("research-files")
+          .list(folder, { limit: pageSize, offset });
+        if (error) throw error;
+        for (const item of data || []) {
+          if (item.id !== null && expectedNames.has(item.name)) {
+            storedPaths.add(folder ? `${folder}/${item.name}` : item.name);
+          }
+        }
+        if (!data || data.length < pageSize) break;
+      }
+    }));
+  }
+
+  return papers
+    .filter((paper) => getResearchStoragePaths(paper.file_url).some((path) => storedPaths.has(path)))
+    .map(({ file_url, is_active, ...paper }) => paper);
+}
+
+app.get("/api/admin/analytics", async (req, res) => {
+  const accessToken = req.headers.authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
+  if (!accessToken) return res.status(401).json({ error: "Authentication is required." });
+
+  try {
+    const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
+    if (authError || !authData?.user) {
+      return res.status(401).json({ error: "Your session is invalid or expired. Please sign in again." });
+    }
+    const { data: callerProfile, error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .select("role")
+      .eq("id", authData.user.id)
+      .single();
+    if (profileError) throw profileError;
+    if (!["admin", "faculty"].includes(callerProfile.role)) {
+      return res.status(403).json({ error: "Research analytics access is required." });
+    }
+
+    const papers = await getActivePapersWithStoredManuscripts();
+    return res.json({ papers });
+  } catch (error) {
+    console.error("[admin/analytics] Failed to load stored research papers:", error);
+    return res.status(500).json({ error: "Unable to verify stored research files. Please retry shortly." });
+  }
+});
+
 app.post("/api/admin/users", async (req, res) => {
   const accessToken = req.headers.authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
   if (!accessToken) return res.status(401).json({ error: "Authentication is required." });
