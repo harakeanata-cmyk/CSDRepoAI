@@ -1648,7 +1648,7 @@ a.card:hover,
 }
 
 .analytics-stat-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 16px;
 }
 
@@ -2079,6 +2079,12 @@ table.archive-table tbody tr:nth-child(even) {
 
 table.archive-table tbody tr:hover {
   background: color-mix(in srgb, var(--brass-500) 12%, var(--surface-sunken));
+}
+
+@media (min-width: 901px) and (max-width: 1200px) {
+  .analytics-stat-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .archive-title-toggle {

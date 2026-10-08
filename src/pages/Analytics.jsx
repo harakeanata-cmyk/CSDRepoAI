@@ -17,6 +17,7 @@ export default function Analytics() {
   const [data, setData] = useState(null);
   const [users, setUsers] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [titleSearch, setTitleSearch] = useState("");
   const [schoolYearFilter, setSchoolYearFilter] = useState("all");
   const [programFilter, setProgramFilter] = useState("all");
@@ -34,8 +35,12 @@ export default function Analytics() {
         if (!active || currentSequence !== refreshSequence) return;
         setData(summary);
         setUsers(userStats);
+        setLoadError("");
       } catch (error) {
         console.error("Could not refresh research analytics:", error);
+        if (active && currentSequence === refreshSequence) {
+          setLoadError(error?.message || "Research analytics could not be loaded.");
+        }
       } finally {
         if (active && currentSequence === refreshSequence) setLoading(false);
       }
@@ -47,12 +52,14 @@ export default function Analytics() {
 
     refresh();
     const unsubscribeFromChanges = subscribeToResearchDataChanges(refresh);
+    const refreshInterval = window.setInterval(refresh, 30000);
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", refreshWhenVisible);
 
     return () => {
       active = false;
       unsubscribeFromChanges();
+      window.clearInterval(refreshInterval);
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
@@ -88,7 +95,7 @@ export default function Analytics() {
       </Layout>
     );
   }
-  if (!data) return <Layout><p className="page-loading">No data available yet.</p></Layout>;
+  if (!data) return <Layout><p className="page-loading" role="alert">{loadError || "No stored research papers are available yet."}</p></Layout>;
 
   const searchTerm = titleSearch.trim().toLocaleLowerCase();
   const filteredTitlesByProgram = filteredData.titlesByProgram
@@ -146,11 +153,17 @@ export default function Analytics() {
       </div>
 
       <StatGrid className="analytics-stat-grid">
-        <StatCard label="Total Submissions" value={filteredData.totalSubmissions} accent="brass" icon={FolderOpen} />
+        <StatCard label="Stored Research Papers" value={filteredData.totalSubmissions} accent="brass" icon={FolderOpen} />
         <StatCard label="Published (Approved)" value={filteredData.approved} accent="success" icon={CheckCircle2} />
         <StatCard label="Pending" value={filteredData.pending} accent="warning" icon={Clock} />
         <StatCard label="Rejected" value={filteredData.rejected} accent="danger" icon={XCircle} />
+        <StatCard label="Withdrawn (Stored)" value={filteredData.withdrawn} accent="warning" icon={FileDown} />
       </StatGrid>
+      <p className="analytics-source-summary" aria-live="polite">
+        Includes {filteredData.bySource.digital} digital and {filteredData.bySource.ocr} OCR digitized papers
+        {filteredData.bySource.other ? `, plus ${filteredData.bySource.other} other stored record${filteredData.bySource.other === 1 ? "" : "s"}` : ""}.
+        {loadError ? ` Last refresh failed: ${loadError}` : " Withdrawn records remain included until permanently deleted. Counts refresh after in-app changes and every 30 seconds."}
+      </p>
 
       {/* a + b: Published per year vs total per school year */}
       <SectionTitle>Research Volume Over Time</SectionTitle>

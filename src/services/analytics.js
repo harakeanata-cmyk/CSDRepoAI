@@ -9,29 +9,22 @@ import { normalizeProgram } from "../lib/programs";
  */
 export async function getAnalyticsSummary() {
   const pageSize = 1000;
-  const loadPapers = async (includeActive) => {
-    const papers = [];
-    for (let from = 0; ; from += pageSize) {
-      const fields = "id, title, status, academic_year, sdg_tags, program, keywords, view_count, download_count, created_at";
-      let request = supabase
-        .from("research_papers")
-        .select(includeActive ? `${fields}, is_active` : fields)
-        .order("id", { ascending: true });
-      if (includeActive) request = request.eq("is_active", true);
-      const { data, error } = await request.range(from, from + pageSize - 1);
-      if (error) throw error;
-      papers.push(...(data || []));
-      if (!data || data.length < pageSize) break;
+  const papers = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("research_papers")
+      .select("id, title, status, academic_year, sdg_tags, program, keywords, view_count, download_count, created_at, source, is_active")
+      .eq("is_active", true)
+      .order("id", { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error) {
+      if (isMissingResearchActiveColumn(error)) {
+        throw new Error("Research Analytics requires the active-record migration. Apply supabase/migrations/20261002000300_preserve_research_papers.sql so inactive papers are excluded accurately.");
+      }
+      throw error;
     }
-    return includeActive ? papers.filter((paper) => paper.is_active !== false) : papers;
-  };
-
-  let papers;
-  try {
-    papers = await loadPapers(true);
-  } catch (error) {
-    if (!isMissingResearchActiveColumn(error)) throw error;
-    papers = await loadPapers(false);
+    papers.push(...(data || []));
+    if (!data || data.length < pageSize) break;
   }
 
   return summarizeAnalytics(papers.map((paper) => ({
@@ -49,9 +42,15 @@ function isMissingResearchActiveColumn(error) {
 export function summarizeAnalytics(papers = []) {
   papers = papers.filter((paper) => paper.is_active !== false);
   const totalSubmissions = papers.length;
+  const bySource = {
+    digital: papers.filter((paper) => paper.source === "digital").length,
+    ocr: papers.filter((paper) => paper.source === "ocr_scanned").length,
+    other: papers.filter((paper) => !["digital", "ocr_scanned"].includes(paper.source)).length,
+  };
   const approved = papers.filter((p) => p.status === "approved").length;
   const pending = papers.filter((p) => ["pending", "under_review", "student_editing"].includes(p.status)).length;
   const rejected = papers.filter((p) => p.status === "rejected").length;
+  const withdrawn = papers.filter((p) => p.status === "withdrawn").length;
 
   // (a) Published (approved) per year + (b) Total submitted per school year,
   // combined into one grouped-bar dataset
@@ -100,9 +99,11 @@ export function summarizeAnalytics(papers = []) {
 
   return {
     totalSubmissions,
+    bySource,
     approved,
     pending,
     rejected,
+    withdrawn,
     byYear,
     byProgram,
     titlesByProgram,
@@ -173,10 +174,11 @@ function groupTitlesByProgram(papers) {
 
 /** Research Analytics Dashboard Module: export a CSV report of submissions */
 export function exportSummaryCsv(papers) {
-  const header = ["Title", "Status", "Academic Year", "Program", "SDG Tags", "Views", "Downloads", "Date Submitted"];
+  const header = ["Title", "Status", "Source", "Academic Year", "Program", "SDG Tags", "Views", "Downloads", "Date Submitted"];
   const rows = papers.map((p) => [
     csvSafe(p.title),
     p.status,
+    p.source === "ocr_scanned" ? "OCR digitization" : p.source === "digital" ? "Digital submission" : "Other",
     p.academic_year || "",
     p.program || "",
     (p.sdg_tags || []).join("; "),
