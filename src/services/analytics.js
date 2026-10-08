@@ -51,6 +51,8 @@ function isMissingResearchActiveColumn(error) {
 
 export function summarizeAnalytics(papers = []) {
   papers = papers.filter((paper) => paper.is_active !== false);
+  const withdrawn = papers.filter((paper) => paper.status === "withdrawn").length;
+  papers = papers.filter((paper) => paper.status !== "withdrawn");
   const totalSubmissions = papers.length;
   const bySource = {
     digital: papers.filter((paper) => paper.source === "digital").length,
@@ -60,7 +62,6 @@ export function summarizeAnalytics(papers = []) {
   const approved = papers.filter((p) => p.status === "approved").length;
   const pending = papers.filter((p) => ["pending", "under_review", "student_editing"].includes(p.status)).length;
   const rejected = papers.filter((p) => p.status === "rejected").length;
-  const withdrawn = papers.filter((p) => p.status === "withdrawn").length;
 
   // (a) Published (approved) per year + (b) Total submitted per school year,
   // combined into one grouped-bar dataset

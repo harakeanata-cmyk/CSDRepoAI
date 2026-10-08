@@ -157,12 +157,12 @@ export default function Analytics() {
         <StatCard label="Published (Approved)" value={filteredData.approved} accent="success" icon={CheckCircle2} />
         <StatCard label="Pending" value={filteredData.pending} accent="warning" icon={Clock} />
         <StatCard label="Rejected" value={filteredData.rejected} accent="danger" icon={XCircle} />
-        <StatCard label="Withdrawn (Stored)" value={filteredData.withdrawn} accent="warning" icon={FileDown} />
+        <StatCard label="Student Recycle Bin (Excluded)" value={filteredData.withdrawn} accent="warning" icon={FileDown} />
       </StatGrid>
       <p className="analytics-source-summary" aria-live="polite">
         Includes {filteredData.bySource.digital} digital and {filteredData.bySource.ocr} OCR digitized papers
         {filteredData.bySource.other ? `, plus ${filteredData.bySource.other} other stored record${filteredData.bySource.other === 1 ? "" : "s"}` : ""}.
-        {loadError ? ` Last refresh failed: ${loadError}` : " Withdrawn records remain included until permanently deleted. Counts refresh after in-app changes and every 30 seconds."}
+        {loadError ? ` Last refresh failed: ${loadError}` : " Student recycle-bin submissions are excluded from analytics totals and charts. Counts refresh after in-app changes and every 30 seconds."}
       </p>
 
       {/* a + b: Published per year vs total per school year */}
