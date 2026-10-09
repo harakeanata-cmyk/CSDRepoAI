@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { Download, Eye, FileDown, FolderOpen, CheckCircle2, Clock, XCircle, Users2, GraduationCap, UserCog, UserCheck, UserX, Search, CalendarDays, Filter, X } from "lucide-react";
+import { Download, Eye, FolderOpen, CheckCircle2, Clock, XCircle, Users2, GraduationCap, UserCog, UserCheck, UserX, Search, CalendarDays, Filter, X } from "lucide-react";
 import Layout from "../components/Layout";
 import { normalizeAcademicYear } from "../lib/academicYear";
 import { PageHeader, StatGrid, StatCard } from "../components/ui";
@@ -157,13 +157,7 @@ export default function Analytics() {
         <StatCard label="Published (Approved)" value={filteredData.approved} accent="success" icon={CheckCircle2} />
         <StatCard label="Pending" value={filteredData.pending} accent="warning" icon={Clock} />
         <StatCard label="Rejected" value={filteredData.rejected} accent="danger" icon={XCircle} />
-        <StatCard label="Student Recycle Bin (Excluded)" value={filteredData.withdrawn} accent="warning" icon={FileDown} />
       </StatGrid>
-      <p className="analytics-source-summary" aria-live="polite">
-        Includes {filteredData.bySource.digital} digital and {filteredData.bySource.ocr} OCR digitized papers
-        {filteredData.bySource.other ? `, plus ${filteredData.bySource.other} other stored record${filteredData.bySource.other === 1 ? "" : "s"}` : ""}.
-        {loadError ? ` Last refresh failed: ${loadError}` : " Student recycle-bin submissions are excluded from analytics totals and charts. Counts refresh after in-app changes and every 30 seconds."}
-      </p>
 
       {/* a + b: Published per year vs total per school year */}
       <SectionTitle>Research Volume Over Time</SectionTitle>
