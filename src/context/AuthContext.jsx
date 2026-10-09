@@ -7,6 +7,7 @@ import { getPasswordResetRedirectTo } from "../lib/authReset";
 import { buildProfileState } from "../lib/authProfile";
 import { applyAuthenticatedSession } from "../lib/authSession";
 import { clearSubmissionDraft } from "../lib/submissionDraftStore";
+import { clearOcrDraft } from "../lib/ocrDraftStore";
 
 const AuthContext = createContext(null);
 
@@ -308,10 +309,12 @@ export function AuthProvider({ children }) {
     setSession(null);
     setProfile(null);
     setRecoverySession(false);
-    // Submission drafts include uploaded File bytes in IndexedDB so students
-    // can switch tabs without losing work. Remove the current user's draft on
-    // logout so it does not reappear after their next login.
-    if (userId) await clearSubmissionDraft(userId);
+    // Drafts include uploaded file bytes in IndexedDB. Clear both submission
+    // and OCR work at logout so private uploads and extracted text do not
+    // reappear when the account signs in again.
+    if (userId) {
+      await Promise.allSettled([clearSubmissionDraft(userId), clearOcrDraft(userId)]);
+    }
     try {
       const { error } = await supabase.auth.signOut();
       if (!error) return { error: null };
