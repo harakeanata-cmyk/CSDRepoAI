@@ -50,12 +50,16 @@ export default function ProtectedRoute({ children, allowedRoles }) {
     void checkCurrentSession();
     document.addEventListener("visibilitychange", checkWhenVisible);
     window.addEventListener("pageshow", checkOnPageShow);
+    const sessionCheckInterval = window.setInterval(() => {
+      void checkCurrentSession(true);
+    }, 60_000);
 
     return () => {
       active = false;
       checkId.current += 1;
       document.removeEventListener("visibilitychange", checkWhenVisible);
       window.removeEventListener("pageshow", checkOnPageShow);
+      window.clearInterval(sessionCheckInterval);
     };
   }, [loading, location.key, location.pathname, locationToken, verifySession]);
 
