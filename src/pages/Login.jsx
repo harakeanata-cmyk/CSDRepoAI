@@ -183,6 +183,10 @@ export default function Login() {
     setLoading(false);
 
     if (result.error) {
+      if (result.friendlyError && !result.friendlyError.includes("email or password")) {
+        setError(result.friendlyError);
+        return;
+      }
       const nextAttempt = failedLoginAttempts + 1;
       setFailedLoginAttempts(nextAttempt);
       if (nextAttempt <= 5) {

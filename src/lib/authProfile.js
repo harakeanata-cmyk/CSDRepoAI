@@ -23,5 +23,6 @@ export function buildProfileState(user, profileData = null) {
     student_number: profileData?.student_number ?? null,
     faculty_number: profileData?.faculty_number ?? null,
     program: profileData?.program ?? null,
+    is_active: profileData?.is_active ?? true,
   };
 }

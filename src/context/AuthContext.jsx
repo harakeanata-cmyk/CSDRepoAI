@@ -50,10 +50,21 @@ export function AuthProvider({ children }) {
       .single();
     if (error) {
       console.error("Failed to load profile:", error.message);
-      setProfile(buildProfileState(user));
+      const fallbackProfile = buildProfileState(user);
+      setProfile(fallbackProfile);
+      return { profile: fallbackProfile, error };
     } else {
-      setProfile(buildProfileState(user, data));
+      const nextProfile = buildProfileState(user, data);
+      setProfile(nextProfile);
+      return { profile: nextProfile, error: null };
     }
+  }
+
+  async function clearInactiveSession() {
+    verifiedSession.current = { accessToken: null, expiresAt: 0 };
+    setSession(null);
+    setProfile(null);
+    await supabase.auth.signOut({ scope: "local" }).catch(() => {});
   }
 
   const verifySession = useCallback(async ({ force = false } = {}) => {
@@ -83,9 +94,21 @@ export function AuthProvider({ children }) {
         return false;
       }
 
+      // Check the database on each guarded navigation and at least once a
+      // minute, so deactivation invalidates a previously issued session too.
+      const { data: accountProfile, error: profileError } = await supabase
+        .from("profiles")
+        .select("is_active")
+        .eq("id", verifiedUser.id)
+        .maybeSingle();
+      if (profileError || !accountProfile || accountProfile.is_active === false) {
+        await clearInactiveSession();
+        return false;
+      }
+
       verifiedSession.current = {
         accessToken: currentSession.access_token,
-        expiresAt: sessionExpiresAt || Date.now() + 60_000,
+        expiresAt: Math.min(sessionExpiresAt || Infinity, Date.now() + 60_000),
       };
       return true;
     } catch {
@@ -141,7 +164,14 @@ export function AuthProvider({ children }) {
         setSession,
         setProfile,
       });
-      await loadProfile(data.session.user.id, data.session.user);
+      const { profile, error: profileError } = await loadProfile(data.session.user.id, data.session.user);
+      if (profileError || !profile || profile.is_active === false) {
+        await clearInactiveSession();
+        const inactiveError = new Error(profile?.is_active === false
+          ? "This account has been deactivated. Please contact an administrator to reactivate it."
+          : "Unable to verify this account. Please try again shortly.");
+        return { error: inactiveError, friendlyError: inactiveError.message };
+      }
       return { error: null, friendlyError: null };
     }
 
