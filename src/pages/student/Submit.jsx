@@ -407,6 +407,8 @@ export default function Submit() {
         apaFile: files.apa,
         userId: user.id,
       });
+      draftSaveSequence.current += 1;
+      await draftSaveQueue.current.catch(() => {});
       await clearSubmissionDraft(user.id);
       draftRevision.current = null;
       setDraftSaveStatus("idle");
@@ -416,6 +418,30 @@ export default function Submit() {
       setStatus("error");
       setErrorMsg(err.message);
     }
+  }
+
+  async function startAnotherSubmission() {
+    draftSaveSequence.current += 1;
+    await draftSaveQueue.current.catch(() => {});
+    if (user?.id) await clearSubmissionDraft(user.id);
+    draftRevision.current = null;
+    Object.keys(files).forEach(nextAnalysisId);
+    setForm(buildDefaultForm(profile));
+    setSdgTags([]);
+    setFiles({ manuscript: null, sourceCode: null, ieee: null, acm: null, apa: null });
+    setDetachedFiles({});
+    setManuscriptText("");
+    setDocumentTexts({});
+    setManuscriptSource("digital");
+    setStatus("idle");
+    setErrorMsg("");
+    setRelated([]);
+    setSuggestions(null);
+    setDocumentAnalysis({ status: "idle", message: "" });
+    setDocumentChecks({});
+    setFileErrors({});
+    setSubmittedPaper(null);
+    setDraftSaveStatus("idle");
   }
 
   function downloadReceipt() {
@@ -547,6 +573,9 @@ export default function Submit() {
                   onClick={() => navigate(profile?.role === "faculty" ? "/faculty" : "/student")}
                 >
                   Return to dashboard
+                </button>
+                <button type="button" className="btn btn-outline" onClick={startAnotherSubmission}>
+                  Submit another paper
                 </button>
               </div>
             </div>
