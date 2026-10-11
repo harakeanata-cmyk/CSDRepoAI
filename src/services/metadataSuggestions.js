@@ -1246,7 +1246,8 @@ function isAdviserCaption(line) {
   return normalized.includes("thesisadviser")
     || normalized.includes("thesisadvisor")
     || normalized.includes("thesisadviscr")
-    || normalized.includes("thesisadviaer");
+    || normalized.includes("thesisadviaer")
+    || /^(?:adviser|advisor|adviscr|advis0r)$/.test(normalized);
 }
 
 function extractSameLineAdviser(line) {

@@ -605,14 +605,15 @@ export async function extractMetadata(rawText) {
   const fallbackAuthors = filterTitleOverlapAuthors(fallback.authors, title);
   const aiAuthors = filterTitleOverlapAuthors(aiMetadata?.authors, title);
   const coverAuthors = filterTitleOverlapAuthors(cover.authors, title);
+  const hasPresentedByAuthors = coverAuthors.length > 0;
   const narrativeAuthors = (approvalNarrative?.authors || [])
     .filter((author) => isOcrNameSupported(author, cleanedText));
   const localAuthors = narrativeAuthors.length
     ? narrativeAuthors
-    : mergeOcrPeople(coverAuthors, fallbackAuthors, 6);
+    : hasPresentedByAuthors ? coverAuthors : mergeOcrPeople(fallbackAuthors, coverAuthors, 6);
   const supportedAiAuthors = aiAuthors.filter((author) => isOcrNameSupported(author, cleanedText));
-  const authors = narrativeAuthors.length
-    ? narrativeAuthors.join(", ")
+  const authors = narrativeAuthors.length || hasPresentedByAuthors
+    ? localAuthors.join(", ")
     : mergeOcrPeople(localAuthors, supportedAiAuthors, 6, true).join(", ");
 
   const fallbackAbstract = String(fallback.abstract || "").trim();
@@ -621,8 +622,8 @@ export async function extractMetadata(rawText) {
   const approvalPanelMembers = extractOcrApprovalPanelMembers(rawText);
   const fallbackPanelMembers = [
     ...approvalPanelMembers,
-    ...(Array.isArray(fallback.panelMembers) ? fallback.panelMembers : []),
     ...cover.panelMembers,
+    ...(Array.isArray(fallback.panelMembers) ? fallback.panelMembers : []),
   ];
   const aiPanelMembers = Array.isArray(aiMetadata?.panelMembers) ? aiMetadata.panelMembers : [];
   const excludedPanelMembers = new Set([fallback.adviser, cover.adviser, aiMetadata?.adviser, ...localAuthors, ...supportedAiAuthors]
@@ -819,11 +820,11 @@ function extractOcrCoverMetadata(rawText) {
   const presentedByIndex = lines.findIndex((line) => /^presented\s+by\s*:?/i.test(line));
   if (presentedByIndex >= 0) {
     const inlineAuthors = lines[presentedByIndex].replace(/^presented\s+by\s*:?\s*/i, "");
-    authors.push(...extractCoverPeople(inlineAuthors));
+    authors.push(...extractPresentedByPeople(inlineAuthors));
     for (let index = presentedByIndex + 1; index < lines.length && authors.length < 6; index += 1) {
       const line = lines[index];
       if (/^(?:march|april|may|june|july|august|september|october|november|december|january|february)\b/i.test(line)) break;
-      const people = extractCoverPeople(line);
+      const people = extractPresentedByPeople(line);
       if (!people.length) {
         if (authors.length) break;
         continue;
@@ -842,8 +843,10 @@ function extractOcrCoverMetadata(rawText) {
   }
 
   const panelMembers = [];
+  const panelChairs = [];
+  const recognizedPanelNames = new Set();
   const panelRole = /\b(?:panel\s*(?:member|chair(?:person|man|woman)?|of\s+examiners)|(?:chair|member)\s+of\s+(?:the\s+)?panel)\b/ig;
-  for (let index = 0; index < lines.length && panelMembers.length < 3; index += 1) {
+  for (let index = 0; index < lines.length && panelMembers.length + panelChairs.length < 6; index += 1) {
     const line = lines[index];
     panelRole.lastIndex = 0;
     const roles = [...line.matchAll(panelRole)];
@@ -851,16 +854,29 @@ function extractOcrCoverMetadata(rawText) {
 
     const beforeRole = line.slice(0, roles[0].index).trim();
     let candidates = extractCoverPeople(beforeRole);
-    if (!candidates.length) candidates = extractCoverPeople(lines[index - 1] || "");
-    if (roles.length > 1 && candidates.length < roles.length) {
-      const previous = lines[index - 1] || "";
-      const credentialChunks = previous.split(/\b(?:MIT|MSIT|MEP-?ECE|MSCE|Ph\.?D\.?)\b/ig);
-      candidates = credentialChunks.flatMap(extractCoverPeople);
+    if (!candidates.length) {
+      for (let previousIndex = index - 1; previousIndex >= Math.max(0, index - 5); previousIndex -= 1) {
+        const previous = lines[previousIndex];
+        if (/^(?:presented\s+by|presented\s+to|in\s+partial\s+fulfillment|thesis\s+adviser|adviser|advisor)\b/i.test(previous)) break;
+        const nearbyCandidates = extractCoverPeople(previous)
+          .filter((candidate) => !recognizedPanelNames.has(normalizeOcrPersonName(candidate)));
+        candidates.push(...nearbyCandidates);
+        if (candidates.length >= roles.length) break;
+      }
+    } else {
+      candidates = candidates.filter((candidate) => !recognizedPanelNames.has(normalizeOcrPersonName(candidate)));
     }
-    panelMembers.push(...candidates);
+    for (let roleIndex = 0; roleIndex < Math.min(roles.length, candidates.length); roleIndex += 1) {
+      const candidate = candidates[roleIndex];
+      const identity = normalizeOcrPersonName(candidate);
+      if (!identity || recognizedPanelNames.has(identity)) continue;
+      recognizedPanelNames.add(identity);
+      if (/chair/i.test(roles[roleIndex][0])) panelChairs.push(candidate);
+      else panelMembers.push(candidate);
+    }
   }
 
-  const uniquePanelMembers = [...new Map(panelMembers
+  const uniquePanelMembers = [...new Map([...panelChairs, ...panelMembers]
     .filter((name) => normalizeOcrPersonName(name) !== normalizeOcrPersonName(adviser)
       && !authors.some((author) => normalizeOcrPersonName(author) === normalizeOcrPersonName(name)))
     .map((name) => [normalizeOcrPersonName(name), name])).values()].slice(0, 3);
@@ -907,6 +923,26 @@ function filterTitleOverlapAuthors(values, title) {
     });
 }
 
+function extractPresentedByPeople(value) {
+  const cleaned = String(value || "")
+    .replace(/^presented\s+by\s*:?\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) return [];
+
+  const authorGroups = cleaned.split(/\s*(?:;|\band\b)\s*/i).filter(Boolean);
+  const authors = [];
+  for (const group of authorGroups) {
+    const parts = group.split(",").map((part) => part.trim()).filter(Boolean);
+    if (parts.length === 2 && parts[0].split(/\s+/).length <= 2 && parts[1].split(/\s+/).length <= 4) {
+      authors.push((parts[1] + " " + parts[0]).trim());
+      continue;
+    }
+    authors.push(...extractCoverPeople(group));
+  }
+  return [...new Set(authors)];
+}
+
 function extractCoverPeople(value) {
   const cleaned = String(value || "")
     .replace(/\b(?:presented\s+by|panel\s+(?:member|chair|chairperson)|adviser|advisor)\b/ig, " ")
@@ -916,8 +952,18 @@ function extractCoverPeople(value) {
 
   // Degree suffixes often separate reviewer names printed on one line in
   // multi-column scans, for example "... Insular, Jr., MIT Hajah T. Sueno, MSIT".
-  const chunks = cleaned.split(/\b(?:MIT|MSIT|MEP-?ECE|MSCE|Ph\.?D\.?)\b/ig).filter(Boolean);
-  const candidates = chunks.length > 1 ? chunks : [cleaned];
+  const credentialPattern = /\b(?:MIT|MSIT|MEP-?ECE|MSCE|Ph\.?D\.?)\b/ig;
+  const candidates = [];
+  let lastIndex = 0;
+  let credentialMatch;
+  while ((credentialMatch = credentialPattern.exec(cleaned)) !== null) {
+    const nameWithCredential = cleaned.slice(lastIndex, credentialPattern.lastIndex).trim();
+    if (nameWithCredential) candidates.push(nameWithCredential);
+    lastIndex = credentialPattern.lastIndex;
+  }
+  const remaining = cleaned.slice(lastIndex).trim();
+  if (remaining) candidates.push(remaining);
+  if (!candidates.length) candidates.push(cleaned);
   return candidates
     .map((candidate) => candidate.replace(/\b(?:Engr\.?|Dr\.?|Mr\.?|Mrs\.?|Ms\.?)\b/ig, " ").replace(/[,:;]+/g, " ").replace(/\s+/g, " ").trim())
     .filter((candidate) => {
