@@ -16,6 +16,8 @@ isn't running — so this is an additive upgrade, not a required dependency.
     similarity (via the `match_research_papers` Postgres function).
   - `POST /embed` — embeds one paper by id. Called automatically by the
     frontend right after a new submission.
+  - `GET /reindex` — Vercel Cron recovery pass for approved archive papers
+    that still lack an embedding. It requires `CRON_SECRET`.
 - `npm run reindex` — backfills embeddings for any paper that doesn't have
   one yet (e.g. everything submitted before this was added).
 
@@ -83,4 +85,7 @@ npm run reindex
 
 This is a plain Express app — deploy it anywhere that runs Node (Cloud Run,
 Render, Fly.io, a small VM, etc.). Keep the service role key server-side
-only; never expose it to the frontend.
+only; never expose it to the frontend. The root Vercel project also schedules
+`/reindex` daily to recover papers whose immediate embedding request failed.
+Set `CRON_SECRET` in the Vercel project environment variables to a random
+value of at least 16 characters so Vercel can authenticate that request.

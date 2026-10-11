@@ -475,6 +475,59 @@ app.post("/format-review", async (req, res) => {
   }
 });
 
+/**
+ * GET /reindex
+ * Vercel Cron recovery pass for approved archive papers whose immediate
+ * embedding request failed or was interrupted. Requires CRON_SECRET.
+ */
+app.get("/reindex", async (req, res) => {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) {
+    return res.status(503).json({ error: "CRON_SECRET is not configured." });
+  }
+  if (req.headers.authorization !== `Bearer ${cronSecret}`) {
+    return res.status(401).json({ error: "Unauthorized." });
+  }
+
+  try {
+    const { data: papers, error } = await supabaseAdmin
+      .from("research_papers")
+      .select("id")
+      .eq("status", "approved")
+      .eq("is_active", true)
+      .is("embedding", null)
+      .order("created_at", { ascending: true })
+      .limit(24);
+    if (error) throw error;
+
+    let embedded = 0;
+    let failed = 0;
+    for (let index = 0; index < (papers || []).length; index += 3) {
+      const results = await Promise.allSettled(
+        papers.slice(index, index + 3).map(({ id }) => embedPaperFlow({ paperId: id })),
+      );
+      for (const result of results) {
+        if (result.status === "fulfilled" && result.value.embedded) embedded += 1;
+        else {
+          failed += 1;
+          if (result.status === "rejected") {
+            console.error("[genkit] Scheduled paper embedding failed:", result.reason);
+          }
+        }
+      }
+    }
+
+    return res.status(failed ? 500 : 200).json({
+      scanned: papers?.length || 0,
+      embedded,
+      failed,
+    });
+  } catch (error) {
+    console.error("[genkit] /reindex failed:", error);
+    return res.status(500).json({ error: "Could not reindex approved archive papers." });
+  }
+});
+
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
 if (!process.env.VERCEL) {
