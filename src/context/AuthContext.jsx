@@ -151,10 +151,18 @@ export function AuthProvider({ children }) {
   }, []);
 
   async function signIn(email, password) {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const normalizedEmail = normalizeEmail(email);
+    const { data, error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
 
     if (error) {
-      console.warn("Supabase signIn error:", error);
+      if (error.message?.toLowerCase().includes("invalid login credentials")) {
+        // A failed attempt must not leave a stale prior session active in the
+        // current tab, which could keep protected pages issuing unauthorized
+        // API requests after the user returns to the login screen.
+        await clearInactiveSession();
+      } else {
+        console.warn("Supabase signIn error:", error);
+      }
     }
 
     if (!error && data?.session?.user) {

@@ -9,7 +9,7 @@ import { getAnalyticsSummary } from "../../services/analytics";
 import { getPendingSubmissions, getAuditTrail } from "../../services/research";
 
 export default function AdminDashboard() {
-  const { profile } = useAuth();
+  const { profile, session } = useAuth();
   const [summary, setSummary] = useState(null);
   const [pending, setPending] = useState([]);
   const [auditTrail, setAuditTrail] = useState([]);
@@ -17,11 +17,13 @@ export default function AdminDashboard() {
   useEffect(() => {
     let active = true;
     let refreshSequence = 0;
+    const accessToken = session?.access_token;
     const refresh = async () => {
+      if (!accessToken) return;
       const currentSequence = ++refreshSequence;
       try {
         const [nextSummary, nextPending, nextAuditTrail] = await Promise.all([
-          getAnalyticsSummary(),
+          getAnalyticsSummary(accessToken),
           getPendingSubmissions(),
           getAuditTrail({ limit: 8 }),
         ]);
@@ -49,7 +51,7 @@ export default function AdminDashboard() {
       window.removeEventListener("focus", refresh);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, []);
+  }, [session?.access_token]);
 
   return (
     <Layout>
