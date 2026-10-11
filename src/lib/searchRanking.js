@@ -13,7 +13,11 @@ const SEARCH_FIELDS = [
 // Keep useful semantic neighbors even when the wording differs substantially
 // from a short natural-language query (for example, "house to sleep" vs.
 // research describing homes or sleeping accommodation).
-const MIN_SEMANTIC_SIMILARITY = 0.45;
+// Keep the semantic neighbors that are meaningfully related while avoiding
+// broad, low-confidence matches. The deployed embedding endpoint scored the
+// boarding-house result for "house to sleep" at 0.539; unrelated neighbors
+// were below 0.47, so this cutoff keeps that result and drops the noise.
+const MIN_SEMANTIC_SIMILARITY = 0.52;
 
 export function rankSearchResults(query, textItems, semanticItems) {
   const byId = new Map();
