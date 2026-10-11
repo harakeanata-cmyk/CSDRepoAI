@@ -10,7 +10,10 @@ const SEARCH_FIELDS = [
   ["abstract", 0.76],
   ["ocr_raw_text", 0.5],
 ];
-const MIN_SEMANTIC_SIMILARITY = 0.62;
+// Keep useful semantic neighbors even when the wording differs substantially
+// from a short natural-language query (for example, "house to sleep" vs.
+// research describing homes or sleeping accommodation).
+const MIN_SEMANTIC_SIMILARITY = 0.45;
 
 export function rankSearchResults(query, textItems, semanticItems) {
   const byId = new Map();

@@ -81,6 +81,13 @@ Any papers submitted before this was set up won't have an embedding yet:
 npm run reindex
 ```
 
+To regenerate embeddings for every paper, including papers that already have
+one, run:
+
+```bash
+npm run reindex -- --force
+```
+
 ## Deploying
 
 This is a plain Express app — deploy it anywhere that runs Node (Cloud Run,

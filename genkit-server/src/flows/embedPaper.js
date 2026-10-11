@@ -52,10 +52,10 @@ async function hashPaperFiles(urls) {
 export const embedPaperFlow = ai.defineFlow(
   {
     name: "embedPaper",
-    inputSchema: z.object({ paperId: z.string().uuid() }),
+    inputSchema: z.object({ paperId: z.string().uuid(), force: z.boolean().optional().default(false) }),
     outputSchema: z.object({ paperId: z.string(), embedded: z.boolean() }),
   },
-  async ({ paperId }) => {
+  async ({ paperId, force }) => {
     const { data: paper, error } = await supabaseAdmin
       .from("research_papers")
       .select("id, title, abstract, keywords, authors, program, ocr_raw_text, file_url, manuscript_sha256, embedding")
@@ -68,7 +68,7 @@ export const embedPaperFlow = ai.defineFlow(
 
     const updates = {};
     const text = buildEmbeddingText(paper);
-    if (!paper.embedding && text.trim()) {
+    if ((!paper.embedding || force) && text.trim()) {
       const rawEmbedding = await ai.embed({ embedder, content: text, options: embedOptions });
       updates.embedding = toVectorLiteral(extractEmbeddingValues(rawEmbedding));
     }

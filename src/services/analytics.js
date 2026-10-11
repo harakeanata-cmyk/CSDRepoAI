@@ -10,8 +10,14 @@ import { normalizeProgram } from "../lib/programs";
 export async function getAnalyticsSummary(accessToken) {
   let papers;
   if (import.meta.env.PROD) {
+    if (!accessToken) {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      accessToken = data.session?.access_token;
+    }
+    if (!accessToken) throw new Error("Please sign in again to load research analytics.");
     const response = await fetch("/api/admin/analytics", {
-      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || "Unable to load stored research papers.");
