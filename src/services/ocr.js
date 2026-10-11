@@ -625,7 +625,8 @@ export async function extractMetadata(rawText) {
   // a plausible-looking but invented third panel member from being archived.
   const supportedAiPanelMembers = aiPanelMembers.filter((member) => isOcrNameSupported(member, cleanedText));
   const combinedPanelMembers = mergeOcrPeople(fallbackPanelMembers, supportedAiPanelMembers, 6, true)
-    .filter((member) => !excludedPanelMembers.has(personNameIdentityKey(member)))
+    .filter((member) => !excludedPanelMembers.has(personNameIdentityKey(member))
+      && isOcrPanelCandidate(member, cleanedText))
     .slice(0, 3);
   const panelMembers = combinedPanelMembers.slice(0, 3).join(", ");
 
@@ -666,6 +667,19 @@ function isOcrNameSupported(name, documentText) {
   const nameWords = normalizeOcrPersonName(name).split(/\s+/).filter((word) => word.length > 1);
   const documentWords = new Set(normalizeOcrPersonName(documentText).split(/\s+/).filter(Boolean));
   return nameWords.length >= 2 && nameWords.filter((word) => documentWords.has(word)).length >= 2;
+}
+
+function isOcrPanelCandidate(name, documentText) {
+  if (!isOcrNameSupported(name, documentText)) return false;
+
+  const nameWords = normalizeOcrPersonName(name).split(/\s+/).filter((word) => word.length > 1);
+  const lines = String(documentText || "").split(/\r?\n/).map((line) => normalizeOcrPersonName(line));
+  for (let index = 0; index < lines.length; index += 1) {
+    if (nameWords.filter((word) => lines[index].split(/\s+/).includes(word)).length < 2) continue;
+    const nearbyText = lines.slice(index, index + 4).join(" ");
+    if (/\b(?:dean|president|secretary|registrar|director)\b/.test(nearbyText)) return false;
+  }
+  return true;
 }
 
 function mergeOcrPeople(primary, additions, limit, coalesceNameParts = false) {
