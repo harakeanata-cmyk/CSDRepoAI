@@ -320,11 +320,22 @@ export function mergeExtractedMetadata(local, localAbstract, ai, file) {
 function chooseTitle(localTitle, aiTitle) {
   const localValid = isValidTitle(localTitle);
   const aiValid = isValidTitle(aiTitle);
-  // The title page is the strongest source. Use generated text only when the
-  // local title-page parser could not find a credible title.
+  // OCR often splits a title across lines. If one parser returned a strict
+  // prefix of the other, retain the fuller candidate instead of the fragment.
+  if (localValid && aiValid) {
+    const localKey = comparableTitle(localTitle);
+    const aiKey = comparableTitle(aiTitle);
+    if (aiKey.startsWith(`${localKey} `)) return aiTitle;
+    if (localKey.startsWith(`${aiKey} `)) return localTitle;
+    return localTitle;
+  }
   if (localValid) return localTitle;
   if (aiValid) return aiTitle;
   return "";
+}
+
+function comparableTitle(value) {
+  return normalizeTitleCandidate(value).toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
 
 function isValidTitle(value) {
@@ -659,40 +670,47 @@ export function extractDocumentFields(text) {
 }
 
 function extractTitle(lines) {
-  const titleIndex = lines.slice(0, 12).findIndex((line) => /^title\s*(?:[:\-].*|)$/i.test(cleanMetadataLine(line)));
+  const firstPageLines = getFirstPageLines(lines);
+  const titleLabel = /^(?:title|research\s+title|title\s+of\s+(?:the\s+)?(?:study|research|paper|thesis|project))(?:\s*[:\-]\s*(.*)|\s*)$/i;
+  const titleIndex = firstPageLines.slice(0, 40).findIndex((line) => titleLabel.test(cleanMetadataLine(line)));
   if (titleIndex >= 0) {
     const titleLines = [];
-    const firstTitleLine = cleanMetadataLine(lines[titleIndex]).replace(/^title\s*[:\-]?\s*/i, "").trim();
+    const firstTitleLine = cleanMetadataLine(firstPageLines[titleIndex]).replace(titleLabel, "$1").trim();
     if (firstTitleLine) titleLines.push(firstTitleLine);
-    for (let index = titleIndex + 1; index < Math.min(lines.length, titleIndex + 8); index += 1) {
-      const line = cleanMetadataLine(lines[index]);
-      if (!line || isPageMarkerLine(line) || isTitlePageBoilerplateLine(line)) continue;
+    for (let index = titleIndex + 1; index < Math.min(firstPageLines.length, titleIndex + 10); index += 1) {
+      const line = cleanMetadataLine(firstPageLines[index]);
+      if (!line) continue;
+      if (isPageMarkerLine(line) || isTitlePageBoilerplateLine(line)) continue;
       if (isTitlePageAuthorBoundary(lines, index) || isTitlePageInstitutionLine(line) || isDocumentHeading(line)) break;
-      if (/^(authors?|researchers?|prepared by|by)\s*[:\-]?$/i.test(line)) break;
+      if (isTitlePageCreditsLine(line)) break;
       titleLines.push(line);
     }
-    if (titleLines.length) return titleLines.join(" ").replace(/\s+/g, " ").trim();
+    const candidate = titleLines.join(" ").replace(/\s+/g, " ").trim();
+    if (isValidTitle(candidate)) return candidate;
   }
 
-  const hasBoldMarkers = lines.some(isBoldMetadataLine);
+  const hasBoldMarkers = firstPageLines.some(isBoldMetadataLine);
   if (!hasBoldMarkers) return firstPageTitle(lines);
 
-  const boldTitleIndex = lines
-    .slice(0, 12)
+  const boldTitleIndex = firstPageLines
+    .slice(0, 40)
     .findIndex((line) => isBoldMetadataLine(line) && !isDocumentHeading(cleanMetadataLine(line)));
   if (boldTitleIndex >= 0) {
     const titleLines = [];
-    for (let index = boldTitleIndex; index < Math.min(lines.length, 12); index += 1) {
-      if (!isBoldMetadataLine(lines[index])) break;
-      titleLines.push(cleanMetadataLine(lines[index]));
+    for (let index = boldTitleIndex; index < Math.min(firstPageLines.length, 40); index += 1) {
+      const line = cleanMetadataLine(firstPageLines[index]);
+      if (!isBoldMetadataLine(firstPageLines[index]) || isTitlePageCreditsLine(line) || isTitlePageInstitutionLine(line)) break;
+      titleLines.push(line);
     }
-    if (titleLines.length > 0) return titleLines.join(" ").replace(/\s+/g, " ").trim();
+    const candidate = titleLines.join(" ").replace(/\s+/g, " ").trim();
+    if (isValidTitle(candidate)) return candidate;
   }
 
-  const authorLabelIndex = lines.findIndex((line) => /^(authors?|researchers?|prepared by|by)\s*[:\-]?\s*/i.test(line));
+  const authorLabelIndex = firstPageLines.findIndex(isTitlePageCreditsLine);
   if (authorLabelIndex > 0) {
-    const beforeAuthors = lines.slice(0, authorLabelIndex).filter((line) => !isPageMarkerLine(line));
-    if (beforeAuthors.length > 0) return beforeAuthors.slice(-3).join(" ").trim();
+    const beforeAuthors = firstPageLines.slice(0, authorLabelIndex).filter((line) => !isPageMarkerLine(line));
+    const candidate = beforeAuthors.slice(-3).join(" ").trim();
+    if (isValidTitle(candidate)) return candidate;
   }
 
   return firstPageTitle(lines);
@@ -863,12 +881,18 @@ function firstPageTitle(lines) {
       continue;
     }
     if (/^(abstract|keywords?)\b/i.test(line)) break;
+    if (isTitlePageCreditsLine(line)) break;
+    if (titleLines.length > 0 && /^(?:submitted\s+in|a\s+thesis\s+submitted|a\s+research\s+paper\s+submitted|presented\s+to)\b/i.test(line)) break;
     if (isTitlePageAuthorBoundary(firstPageLines, index)) break;
     if (titleLines.length > 0 && isInstitutionLine(line) && !isAllCapsLine(line)) break;
     titleLines.push(line);
   }
 
   return titleLines.join(" ").replace(/\s+/g, " ").trim();
+}
+
+function isTitlePageCreditsLine(line) {
+  return /^(?:authors?|researchers?|proponents?|investigators?|prepared\s+by|submitted\s+by|presented\s+by|by)\s*[:\-]?\s*/i.test(cleanMetadataLine(line));
 }
 
 function isTitlePageInstitutionLine(line) {
