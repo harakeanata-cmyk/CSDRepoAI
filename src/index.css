@@ -3150,6 +3150,30 @@ table.admin-archive-table td:nth-child(7) { width: 8%; }
   border-radius: 50%;
 }
 
+.ocr-archive-confirm-dialog {
+  width: min(100%, 500px);
+}
+
+.ocr-archive-confirm-icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--brass-700);
+  background: var(--brass-100);
+  border-radius: 50%;
+}
+
+[data-theme="dark"] .ocr-archive-confirm-icon {
+  color: var(--brass-300);
+  background: rgba(196, 154, 65, 0.16);
+}
+
+.ocr-archive-confirm-dialog strong {
+  color: var(--ink-700);
+}
+
 .logout-dialog h2 {
   font-family: var(--font-body);
   font-size: 17px;

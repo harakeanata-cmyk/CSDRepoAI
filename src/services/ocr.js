@@ -575,6 +575,7 @@ async function uploadResearchDocument(file, { onProgress } = {}) {
 export async function extractMetadata(rawText) {
   const parserText = stripPageMarkers(rawText);
   const cleanedText = parserText.replace(/__DOCX_(?:BOLD|ITALIC)__/g, "");
+  const approvalNarrative = extractOcrApprovalNarrative(cleanedText);
   const fallback = extractDocumentFields(parserText);
   const cover = extractOcrCoverMetadata(rawText);
   const aiMetadata = await extractMetadataWithAI(cleanedText);
@@ -592,10 +593,11 @@ export async function extractMetadata(rawText) {
     : String(aiMetadata?.keywords || "").trim();
   const keywords = fallbackKeywords || aiKeywords;
 
-  const fallbackTitle = isUsableMetadataTitle(cover.title) ? cover.title
-    : isUsableMetadataTitle(fallback.title) ? fallback.title : "";
+  const narrativeTitle = approvalNarrative?.title;
+  const fallbackTitle = narrativeTitle || (isUsableMetadataTitle(cover.title) ? cover.title
+    : isUsableMetadataTitle(fallback.title) ? fallback.title : "");
   const aiTitle = isUsableMetadataTitle(aiMetadata?.title) ? String(aiMetadata.title).trim() : "";
-  const title = chooseMostCompleteOcrTitle(fallbackTitle, aiTitle);
+  const title = narrativeTitle || chooseMostCompleteOcrTitle(fallbackTitle, aiTitle);
 
   // A short final title line (for example, "Vision Transformer") can look
   // like a name to the generic metadata parser. Drop candidates that are
@@ -603,9 +605,15 @@ export async function extractMetadata(rawText) {
   const fallbackAuthors = filterTitleOverlapAuthors(fallback.authors, title);
   const aiAuthors = filterTitleOverlapAuthors(aiMetadata?.authors, title);
   const coverAuthors = filterTitleOverlapAuthors(cover.authors, title);
-  const localAuthors = mergeOcrPeople(coverAuthors, fallbackAuthors, 6);
+  const narrativeAuthors = (approvalNarrative?.authors || [])
+    .filter((author) => isOcrNameSupported(author, cleanedText));
+  const localAuthors = narrativeAuthors.length
+    ? narrativeAuthors
+    : mergeOcrPeople(coverAuthors, fallbackAuthors, 6);
   const supportedAiAuthors = aiAuthors.filter((author) => isOcrNameSupported(author, cleanedText));
-  const authors = mergeOcrPeople(localAuthors, supportedAiAuthors, 6, true).join(", ");
+  const authors = narrativeAuthors.length
+    ? narrativeAuthors.join(", ")
+    : mergeOcrPeople(localAuthors, supportedAiAuthors, 6, true).join(", ");
 
   const fallbackAbstract = String(fallback.abstract || "").trim();
   const aiAbstract = String(aiMetadata?.abstract || "").trim();
@@ -639,6 +647,27 @@ export async function extractMetadata(rawText) {
     keywords,
     aiStatus,
   };
+}
+
+function extractOcrApprovalNarrative(documentText) {
+  const text = String(documentText || "").replace(/\s+/g, " ").trim();
+  const match = text.match(/\bthis\s+thesis\s+entitled\s+([\s\S]{12,250}?)\s*,?\s*prepared\s*,?\s*(?:and\s*)?submitted\s+by\s+([\s\S]{5,240}?)\s*,?\s*in\s+partial\s+fulfillment\b/i);
+  if (!match) return null;
+
+  const title = match[1].replace(/^[\s"'“”]+|[\s"'“”]+$/g, "").replace(/[,:;\s]+$/, "").trim();
+  const authors = match[2]
+    .split(/\s*(?:,|;)\s*(?:and\s+)?|\s+\band\b\s+/i)
+    .map((author) => author.replace(/^[\s,;]+|[\s,;]+$/g, "").trim())
+    .filter((author) => isLikelyOcrNarrativeName(author));
+  const wordCount = title.split(/\s+/).length;
+  if (title.length < 20 || title.length > 250 || wordCount < 4 || wordCount > 40 || !authors.length) return null;
+  return { title, authors };
+}
+
+function isLikelyOcrNarrativeName(value) {
+  const words = String(value || "").replace(/[,.]/g, "").split(/\s+/).filter(Boolean);
+  return words.length >= 2 && words.length <= 7
+    && words.every((word) => /^[A-Z][A-Za-z.'-]*$/.test(word) || /^[A-Z]\.?$/.test(word));
 }
 
 function chooseMostCompleteOcrTitle(localTitle, aiTitle) {
@@ -921,7 +950,7 @@ function hasUsableAiMetadata(metadata) {
 
 function isUsableMetadataTitle(value) {
   const title = String(value || "").replace(/\s+/g, " ").trim();
-  if (!title || title.length > 180 || title.split(/\s+/).length > 24) return false;
+  if (title.length < 12 || title.length > 250 || title.split(/\s+/).length < 2 || title.split(/\s+/).length > 40) return false;
   if (/^har(?:d)?bound(?:\s+bayad)?$/i.test(title)) return false;
   if (/\b(?:university|college|institute|bachelor of|master of|in partial fulfillment|submitted to|presented to)\b/i.test(title)) return false;
   if (/^(string|title|document|manuscript|research paper|untitled|unknown|n\/a|null|undefined)$/i.test(title)) return false;

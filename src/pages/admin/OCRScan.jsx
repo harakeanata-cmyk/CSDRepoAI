@@ -77,6 +77,7 @@ export default function OCRScan({ isActive = true }) {
   const [formatReview, setFormatReview] = useState({ status: "idle", message: "" });
   const [keywordSuggestions, setKeywordSuggestions] = useState([]);
   const [keywordSuggestionStatus, setKeywordSuggestionStatus] = useState("idle");
+  const [archiveConfirmationOpen, setArchiveConfirmationOpen] = useState(false);
   const fileInputRef = useRef(null);
   const scanAbortControllerRef = useRef(null);
   const scanPauseReasonRef = useRef("");
@@ -167,6 +168,15 @@ export default function OCRScan({ isActive = true }) {
       step: step === "scanning" || step === "saving" ? (ocrText ? "scanned" : "idle") : step,
     }).catch(() => {});
   }, [user?.id, ocrDraftLoadedFor, files, scannedPageTexts, ocrText, meta, sdgTags, aiStatus, scanNotice, formatReview, step]);
+
+  useEffect(() => {
+    if (!archiveConfirmationOpen) return undefined;
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setArchiveConfirmationOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [archiveConfirmationOpen]);
 
   const activeIndex = stepIndexFor(step);
 
@@ -440,12 +450,17 @@ function handleFile(e) {
     }
   }
 
-  async function handleArchive(e) {
+  function handleArchive(e) {
     e.preventDefault();
     if (!ocrRecordCheck.ok) {
       setUploadError(ocrRecordCheck.message);
       return;
     }
+    setArchiveConfirmationOpen(true);
+  }
+
+  async function confirmArchive() {
+    setArchiveConfirmationOpen(false);
     setStep("saving");
     setUploadError("");
     setSaveProgress({ completed: 0, total: files.length, phase: "preparing" });
@@ -490,6 +505,7 @@ function handleFile(e) {
   }
 
   function resetAll() {
+    setArchiveConfirmationOpen(false);
     previews.forEach((preview) => URL.revokeObjectURL(preview));
     setFiles([]);
     setPreviews([]);
@@ -1028,6 +1044,26 @@ function handleFile(e) {
           <button className="btn btn-outline btn-sm" onClick={resetAll}>
             <RotateCcw size={13} /> Scan another
           </button>
+        </div>
+      )}
+
+      {archiveConfirmationOpen && (
+        <div className="logout-dialog-backdrop" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setArchiveConfirmationOpen(false);
+        }}>
+          <div className="logout-dialog ocr-archive-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="ocr-archive-confirm-title" aria-describedby="ocr-archive-confirm-description">
+            <div className="ocr-archive-confirm-icon"><BookOpenCheck size={18} /></div>
+            <div>
+              <h2 id="ocr-archive-confirm-title">Are you sure you want to archive this scan?</h2>
+              <p id="ocr-archive-confirm-description">
+                This will add <strong>{meta.title.trim() || "this research document"}</strong> to the repository as an approved OCR record. Check the title, authors, adviser, and panel members before continuing.
+              </p>
+            </div>
+            <div className="logout-dialog-actions">
+              <button type="button" className="btn btn-outline btn-sm" onClick={() => setArchiveConfirmationOpen(false)}>Go back and review</button>
+              <button type="button" className="btn btn-primary btn-sm" onClick={confirmArchive}>Yes, archive this paper</button>
+            </div>
+          </div>
         </div>
       )}
     </Layout>
