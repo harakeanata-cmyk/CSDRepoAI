@@ -350,6 +350,7 @@ revoke all on function public.restore_my_withdrawn_research_submission(uuid) fro
 revoke all on function public.permanently_delete_my_withdrawn_research_submission(uuid) from public;
 grant execute on function public.restore_my_withdrawn_research_submission(uuid) to authenticated;
 grant execute on function public.permanently_delete_my_withdrawn_research_submission(uuid) to authenticated;
+notify pgrst, 'reload schema';
 
 -- Safe repository activity shown to every signed-in user's notification bell.
 create table if not exists public_notifications (
