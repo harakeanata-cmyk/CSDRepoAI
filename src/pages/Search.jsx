@@ -118,10 +118,10 @@ export default function Search() {
               <h3>{r.title}</h3>
               <div
                 className={`search-match-confidence${r.matchConfidence >= 80 ? " is-high" : r.matchConfidence >= 65 ? " is-mid" : " is-low"}`}
-                aria-label={`Estimated relevance score ${r.matchConfidence}%`}
-                title="Estimated relevance from text and semantic matches. It is not a probability or a certainty score."
+                aria-label={`Relevance score ${r.matchConfidence} out of 100`}
+                title="Score based on query term coverage across the title, authors, keywords, abstract, and semantic similarity. It is a relevance score, not a probability."
               >
-                <span>Relevance</span>
+                <span>Relevance score</span>
                 <strong>{r.matchConfidence}%</strong>
                 <span className="search-match-track" aria-hidden="true"><span style={{ width: `${r.matchConfidence}%` }} /></span>
               </div>

@@ -4,13 +4,13 @@ const SEARCH_STOP_WORDS = new Set([
 ]);
 
 const SEARCH_FIELDS = [
-  ["title", 3],
-  ["authors", 2.6],
-  ["keywords", 2.4],
-  ["abstract", 1.3],
+  ["title", 1],
+  ["authors", 0.88],
+  ["keywords", 0.92],
+  ["abstract", 0.76],
   ["ocr_raw_text", 0.5],
 ];
-const MIN_SEMANTIC_SIMILARITY = 0.53;
+const MIN_SEMANTIC_SIMILARITY = 0.62;
 
 export function rankSearchResults(query, textItems, semanticItems) {
   const byId = new Map();
@@ -43,33 +43,48 @@ export function getSearchMatch(query, item) {
   const normalizedQuery = normalizeSearchText(query);
   const tokens = [...new Set(normalizedQuery.split(" ").filter((token) => token.length > 1 && !SEARCH_STOP_WORDS.has(token)))];
   const fields = SEARCH_FIELDS.map(([key, weight]) => [
+    key,
     weight,
     normalizeSearchText(Array.isArray(item[key]) ? item[key].join(" ") : item[key]),
-  ]).filter(([, value]) => value);
-  const exactField = normalizedQuery.length > 2
-    ? fields.find(([, value]) => value.includes(normalizedQuery))
+  ]).filter(([, , value]) => value);
+  const exactPhraseField = tokens.length > 1 && normalizedQuery.length > 2
+    ? fields.find(([, , value]) => ` ${value} `.includes(` ${normalizedQuery} `))
     : null;
-  const fieldTokenSets = fields.map(([weight, value]) => [weight, new Set(value.split(" "))]);
+  const fieldTokenSets = fields.map(([key, weight, value]) => [key, weight, new Set(value.split(" "))]);
+  const matchedTokens = tokens.filter((token) => fieldTokenSets.some(([, , values]) => values.has(token)));
   const weightedCoverage = tokens.length
-    ? tokens.reduce((total, token) => total + Math.max(0, ...fieldTokenSets.map(([weight, values]) => values.has(token) ? weight : 0)), 0)
-      / (tokens.length * SEARCH_FIELDS[0][1])
+    ? tokens.reduce((total, token) => total + Math.max(0, ...fieldTokenSets.map(([, weight, values]) => values.has(token) ? weight : 0)), 0) / tokens.length
+    : 0;
+  const bestFieldCoverage = tokens.length
+    ? Math.max(0, ...fieldTokenSets.map(([, weight, values]) => {
+      const coverage = tokens.filter((token) => values.has(token)).length / tokens.length;
+      return coverage * weight;
+    }))
     : 0;
   const semanticSimilarity = Math.min(1, Math.max(0, Number(item.similarity) || 0));
-  const semanticEvidence = Math.min(1, Math.max(0, (semanticSimilarity - 0.35) / 0.4));
 
-  let lexicalScore = Math.round(weightedCoverage * 100);
-  if (exactField) {
-    const fieldWeight = exactField[0];
-    lexicalScore = Math.max(lexicalScore, fieldWeight >= 3 ? 100 : fieldWeight >= 2.4 ? 88 : fieldWeight >= 2 ? 84 : fieldWeight >= 1 ? 72 : 55);
-  }
-
-  const confidence = Math.min(95, lexicalScore === 100
-    ? 95
-    : Math.round(lexicalScore * 0.65 + semanticEvidence * 35));
+  // A full phrase match in the title is an exact lexical match. Other fields
+  // receive slightly lower scores because they provide weaker evidence.
+  const exactPhraseScore = exactPhraseField
+    ? Math.round(100 * exactPhraseField[1])
+    : 0;
+  const singleTermFactor = tokens.length === 1 ? 0.65 : 1;
+  const lexicalScore = Math.round(Math.max(
+    bestFieldCoverage * 100 * singleTermFactor,
+    weightedCoverage * 88 * singleTermFactor,
+    exactPhraseScore,
+  ));
+  // Cosine similarity is not a probability. Map it to a bounded relevance
+  // score and let direct query-term evidence take precedence when stronger.
+  const semanticScore = semanticSimilarity > 0
+    ? Math.round(Math.min(94, Math.max(0, 55 + ((semanticSimilarity - 0.5) / 0.3) * 39)))
+    : 0;
+  const confidence = Math.min(100, Math.max(lexicalScore, semanticScore));
   const minimumLexicalCoverage = tokens.length > 1 ? 0.6 : 0.45;
-  const relevant = Boolean(exactField)
-    || semanticSimilarity >= MIN_SEMANTIC_SIMILARITY
-    || (tokens.length > 0 && weightedCoverage >= minimumLexicalCoverage);
+  const relevant = Boolean(exactPhraseField)
+    || (tokens.length > 0 && matchedTokens.length > 0 && weightedCoverage >= minimumLexicalCoverage)
+    || semanticSimilarity >= MIN_SEMANTIC_SIMILARITY;
+
   return { confidence, relevant };
 }
 

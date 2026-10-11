@@ -9,7 +9,7 @@ test("ranks exact title matches above incidental abstract overlap", () => {
   ], []);
 
   assert.equal(results[0].id, "title");
-  assert.equal(results[0].matchConfidence, 95);
+  assert.equal(results[0].matchConfidence, 100);
   assert.ok(results.every(({ matchConfidence }) => matchConfidence < 100));
 });
 
