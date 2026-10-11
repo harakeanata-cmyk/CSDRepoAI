@@ -54,10 +54,9 @@ function getPaddleOcr() {
     paddleOcrPromise = import("@paddleocr/paddleocr-js")
       .then(async ({ PaddleOCR }) => {
         const options = {
-          // Tiny v6 models are designed for on-device inference and avoid
-          // the long session-initialization timeout seen with v5 on phones.
-          textDetectionModelName: "PP-OCRv6_tiny_det",
-          textRecognitionModelName: "PP-OCRv6_tiny_rec",
+          // Use the small v6 pair for better recognition of the small, dense
+          // title-page and approval-sheet text common in scanned theses.
+          ocrVersion: "PP-OCRv6",
           // OCR is invoked once per page, so a large recognition batch only
           // reserves extra session memory. Keep it at one for phone browsers.
           textDetectionBatchSize: 1,
@@ -830,7 +829,7 @@ function isOcrCoverTitleLine(line) {
   if (isOcrCoverNoiseLine(line) || isOcrCoverPersonLine(line)) return false;
   const letters = line.replace(/[^A-Za-z]/g, "");
   const words = line.split(/\s+/).filter(Boolean);
-  return words.length >= 4 && letters.length >= 18
+  return words.length >= 2 && letters.length >= 10
     && !/\b(?:UNIVERSITY|COLLEGE|BROTHERS|KORONADAL|COTABATO|SOUTHCOTABATO|BACHELOR|MASTER|COMPUTER SCIENCE)\b/i.test(line);
 }
 

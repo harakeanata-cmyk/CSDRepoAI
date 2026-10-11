@@ -1121,6 +1121,7 @@ function extractAdviser(lines) {
 
 function extractPanelMembers(lines, adviser = "", authors = []) {
   const panelMembers = [];
+  const panelChairs = [];
   const excludedPeople = new Set([adviser, ...authors].map(normalizePersonName).filter(Boolean));
   const chairRole = "chair(?:person|man|woman)?";
   const panelRolePattern = new RegExp(`^(?:panel\\s*(?:${chairRole}|members?|ists?)|(?:${chairRole}|member)\\s+of\\s+(?:the\\s+)?panel|${chairRole})$`, "i");
@@ -1154,10 +1155,13 @@ function extractPanelMembers(lines, adviser = "", authors = []) {
       : (panelRolePattern.test(line) || panelRoleLinePattern.test(line))
         ? isPanelistName(previousLine) ? previousLine : nextLine
         : inlineMatch?.[1] || "");
-    if (name && isPanelistName(name) && !excludedPeople.has(normalizePersonName(name))) panelMembers.push(name.trim());
+    if (name && isPanelistName(name) && !excludedPeople.has(normalizePersonName(name))) {
+      if (/\b(?:panel\s*)?chair(?:person|man|woman)?\b/i.test(`${line} ${nextLine}`)) panelChairs.push(name.trim());
+      else panelMembers.push(name.trim());
+    }
   }
 
-  const uniquePanelMembers = [...new Set(panelMembers)];
+  const uniquePanelMembers = [...new Set([...panelChairs, ...panelMembers])];
   if (uniquePanelMembers.length < 3) {
     const approvalIndex = lines.findIndex((line) => /^approval[\s-]*sheet\b/i.test(cleanMetadataLine(line)));
     if (approvalIndex >= 0) {
