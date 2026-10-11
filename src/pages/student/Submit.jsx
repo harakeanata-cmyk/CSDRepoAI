@@ -122,11 +122,29 @@ export default function Submit() {
   }, [user?.id, profile]);
 
   useEffect(() => {
-    if (!user?.id || draftStateOwner !== user.id || status === "done" || !hasUnsavedSubmission) return;
+    if (!user?.id || draftStateOwner !== user.id || status === "done") return;
     if (skipDraftSaveOnce.current) {
       skipDraftSaveOnce.current = false;
       return;
     }
+
+    if (!hasUnsavedSubmission) {
+      if (!draftRevision.current) {
+        setDraftSaveStatus("idle");
+        return;
+      }
+      const clearSequence = ++draftSaveSequence.current;
+      draftSaveQueue.current = draftSaveQueue.current.catch(() => {}).then(async () => {
+        if (clearSequence !== draftSaveSequence.current || user?.id !== draftStateOwner) return;
+        await clearSubmissionDraft(user.id);
+        if (clearSequence === draftSaveSequence.current && user?.id === draftStateOwner) {
+          draftRevision.current = null;
+          setDraftSaveStatus("idle");
+        }
+      });
+      return;
+    }
+
     setDraftSaveStatus("saving");
     const saveSequence = ++draftSaveSequence.current;
     const snapshot = {
@@ -219,6 +237,24 @@ export default function Submit() {
     setSdgTags((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   }
 
+  function clearManuscriptMetadata() {
+    setForm((current) => ({
+      ...current,
+      title: "",
+      abstract: "",
+      authors: "",
+      adviser: "",
+      keywords: "",
+    }));
+    setSdgTags([]);
+    setManuscriptText("");
+    setDocumentTexts((current) => { const next = { ...current }; delete next.manuscript; return next; });
+    setManuscriptSource("digital");
+    setSuggestions(null);
+    setRelated([]);
+    setDocumentAnalysis({ status: "idle", message: "" });
+  }
+
   function applySuggestions() {
     if (!suggestions) return;
     const suggestedKeywords = Array.isArray(suggestions.keywords)
@@ -241,9 +277,7 @@ export default function Submit() {
       setDocumentChecks((current) => { const next = { ...current }; delete next[slot]; return next; });
       setDocumentTexts((current) => { const next = { ...current }; delete next[slot]; return next; });
       if (slot === "manuscript") {
-        setManuscriptText("");
-        setManuscriptSource("digital");
-        setDocumentAnalysis({ status: "idle", message: "" });
+        clearManuscriptMetadata();
       }
       return;
     }
@@ -306,6 +340,7 @@ export default function Submit() {
   }, []);
 
   function handleFileChange(slot, file) {
+    if (slot === "manuscript" && file) clearManuscriptMetadata();
     setFiles((current) => ({ ...current, [slot]: file }));
     setDetachedFiles((current) => { const next = { ...current }; delete next[slot]; return next; });
     setFileErrors((current) => ({ ...current, [slot]: "" }));
