@@ -43,6 +43,9 @@ Fill in `.env`:
 - `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` — Project Settings > API in
   your Supabase dashboard. **Use the service role key here**, not the anon
   key — this server needs to write embeddings and query across all papers.
+- `CRON_SECRET` — optional for local development; required by `/reindex`.
+  For Vercel, configure it in **Settings > Environment Variables** for the
+  project that serves the root `vercel.json` cron. Do not commit its value.
 
 ## 3. Install and run
 
@@ -96,3 +99,7 @@ only; never expose it to the frontend. The root Vercel project also schedules
 `/reindex` daily to recover papers whose immediate embedding request failed.
 Set `CRON_SECRET` in the Vercel project environment variables to a random
 value of at least 16 characters so Vercel can authenticate that request.
+The environment files in this repository are examples only. Real `.env*`
+files and `.vercel` project metadata stay local; configure deployment values
+in Vercel's project settings instead. The repository's `public/` directory is
+for static assets and does not need a `.vercel` folder.

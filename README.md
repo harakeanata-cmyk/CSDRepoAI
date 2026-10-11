@@ -68,6 +68,14 @@ cp .env.example .env
 
 Open `.env` and paste in your Supabase URL and anon key.
 
+The real `.env` file is intentionally excluded from Git. For the main Vercel
+deployment, add the values from `.env.example` in the Vercel project's
+**Settings > Environment Variables** and redeploy. Keep
+`SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_GENAI_API_KEY`, and `CRON_SECRET`
+server-side; only the `VITE_` variables are available to browser code. The
+`.vercel` folder is local Vercel project metadata created by `vercel link` or
+`vercel env pull`; it does not belong in Git or in `public/`.
+
 ## 3. Run it in VS Code
 
 ```bash
