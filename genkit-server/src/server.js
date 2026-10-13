@@ -309,7 +309,10 @@ app.post("/check-duplicate", async (req, res) => {
         .is("embedding", null),
       semanticSearchFlow({
         query,
-        statusFilter: null,
+        // Only papers actually published in the active archive should block
+        // a new submission. Pending and under-review submissions are not
+        // visible archive records and must not cause a duplicate rejection.
+        statusFilter: "approved",
         matchCount: 100,
       }),
     ]);
@@ -359,7 +362,7 @@ app.post("/check-duplicate", async (req, res) => {
       .select("id, title, abstract, keywords, ocr_raw_text")
       .in("id", candidates.map((item) => item.id))
       .eq("is_active", true)
-      .neq("status", "rejected");
+      .eq("status", "approved");
 
     if (candidateError) throw candidateError;
     const liveCandidateById = new Map((candidateDocuments || []).map((paper) => [paper.id, paper]));
