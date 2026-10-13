@@ -305,6 +305,7 @@ app.post("/check-duplicate", async (req, res) => {
         .from("research_papers")
         .select("id", { count: "exact", head: true })
         .eq("status", "approved")
+        .eq("is_active", true)
         .is("embedding", null),
       semanticSearchFlow({
         query,
@@ -328,6 +329,7 @@ app.post("/check-duplicate", async (req, res) => {
           .from("research_papers")
           .select("id, title, abstract, keywords, ocr_raw_text")
           .eq("status", "approved")
+          .eq("is_active", true)
           .is("embedding", null)
           .order("id")
           .range(offset, offset + pageSize - 1);
@@ -354,14 +356,18 @@ app.post("/check-duplicate", async (req, res) => {
 
     const { data: candidateDocuments, error: candidateError } = await supabaseAdmin
       .from("research_papers")
-      .select("id, ocr_raw_text")
-      .in("id", candidates.map((item) => item.id));
+      .select("id, title, abstract, keywords, ocr_raw_text")
+      .in("id", candidates.map((item) => item.id))
+      .eq("is_active", true)
+      .neq("status", "rejected");
 
     if (candidateError) throw candidateError;
-    const documentTextById = new Map((candidateDocuments || []).map((paper) => [paper.id, paper.ocr_raw_text || ""]));
+    const liveCandidateById = new Map((candidateDocuments || []).map((paper) => [paper.id, paper]));
     const duplicate = fallbackDuplicate || candidates.some((item) => {
-      const candidateDocument = documentTextById.get(item.id);
-      const candidateMetadata = [item.title, item.abstract, ...(item.keywords || [])].filter(Boolean).join(" ");
+      const paper = liveCandidateById.get(item.id);
+      if (!paper) return false;
+      const candidateDocument = paper.ocr_raw_text || "";
+      const candidateMetadata = [paper.title, paper.abstract, ...(paper.keywords || [])].filter(Boolean).join(" ");
       const documentOverlap = getContentOverlap(manuscriptContext, candidateDocument);
       const metadataOverlap = getContentOverlap(metadataContext, candidateMetadata);
       return documentOverlap >= 0.35 || metadataOverlap >= 0.75;
