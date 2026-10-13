@@ -298,21 +298,38 @@ app.post("/check-duplicate", async (req, res) => {
   }
 
   try {
+    // A verified caller may compare against their own active submissions as
+    // well as the approved archive. Never trust a user ID from the request body.
+    const authorization = req.get("authorization") || "";
+    const accessToken = authorization.match(/^Bearer\s+(.+)$/i)?.[1];
+    let submitterId = null;
+    if (accessToken) {
+      const { data: { user } = {} } = await supabaseAdmin.auth.getUser(accessToken);
+      submitterId = user?.id || null;
+    }
+
     // The count and remote embedding/vector search are independent; overlap
     // them to avoid adding their network latency together on every request.
-    const [indexCountResult, result] = await Promise.all([
-      supabaseAdmin
+    const buildUnindexedQuery = (countOnly) => {
+      let request = supabaseAdmin
         .from("research_papers")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "approved")
+        .select(countOnly ? "id" : "id, title, abstract, keywords, ocr_raw_text", countOnly ? { count: "exact", head: true } : undefined)
         .eq("is_active", true)
-        .is("embedding", null),
+        .not("status", "in", "(rejected,withdrawn)")
+        .is("embedding", null);
+      if (submitterId) request = request.or(`status.eq.approved,submitted_by.eq.${submitterId}`);
+      else request = request.eq("status", "approved");
+      return request;
+    };
+
+    const [indexCountResult, result] = await Promise.all([
+      buildUnindexedQuery(true),
       semanticSearchFlow({
         query,
-        // Only papers actually published in the active archive should block
-        // a new submission. Pending and under-review submissions are not
-        // visible archive records and must not cause a duplicate rejection.
-        statusFilter: "approved",
+        // Include active approved archive records and, for authenticated
+        // students, their own active submissions in any visible workflow state.
+        statusFilter: submitterId ? null : "approved",
+        submitterFilter: submitterId,
         matchCount: 100,
       }),
     ]);
@@ -328,12 +345,7 @@ app.post("/check-duplicate", async (req, res) => {
     if (unindexedCount > 0) {
       const pageSize = 500;
       for (let offset = 0; offset < unindexedCount; offset += pageSize) {
-        const { data, error } = await supabaseAdmin
-          .from("research_papers")
-          .select("id, title, abstract, keywords, ocr_raw_text")
-          .eq("status", "approved")
-          .eq("is_active", true)
-          .is("embedding", null)
+        const { data, error } = await buildUnindexedQuery(false)
           .order("id")
           .range(offset, offset + pageSize - 1);
         if (error) throw error;
@@ -362,7 +374,7 @@ app.post("/check-duplicate", async (req, res) => {
       .select("id, title, abstract, keywords, ocr_raw_text")
       .in("id", candidates.map((item) => item.id))
       .eq("is_active", true)
-      .eq("status", "approved");
+      .not("status", "in", "(rejected,withdrawn)");
 
     if (candidateError) throw candidateError;
     const liveCandidateById = new Map((candidateDocuments || []).map((paper) => [paper.id, paper]));

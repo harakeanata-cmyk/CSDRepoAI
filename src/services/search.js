@@ -10,9 +10,13 @@ export async function checkResearchDuplicate({ title, abstract, keywords = [], d
   }
 
   try {
+    const { data: { session } = {} } = await supabase.auth.getSession();
     const response = await fetch(GENKIT_DUPLICATE_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+      },
       body: JSON.stringify({ title, abstract, keywords, documentText: String(documentText || "").slice(0, 6000), excludePaperId }),
     });
 

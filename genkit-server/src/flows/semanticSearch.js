@@ -10,13 +10,14 @@ export const semanticSearchFlow = ai.defineFlow(
       query: z.string().min(1),
       sdgFilter: z.number().int().optional().nullable(),
       statusFilter: z.string().optional().nullable().default("approved"),
+      submitterFilter: z.string().uuid().optional().nullable(),
       matchCount: z.number().int().min(1).max(100).optional().default(30),
     }),
     outputSchema: z.object({
       items: z.array(z.any()),
     }),
   },
-  async ({ query, sdgFilter, statusFilter, matchCount }) => {
+  async ({ query, sdgFilter, statusFilter, submitterFilter, matchCount }) => {
     const rawQueryEmbedding = await ai.embed({ embedder, content: query, options: embedOptions });
     const queryEmbedding = toVectorLiteral(extractEmbeddingValues(rawQueryEmbedding));
 
@@ -25,6 +26,7 @@ export const semanticSearchFlow = ai.defineFlow(
       match_count: matchCount ?? 30,
       status_filter: statusFilter === undefined ? "approved" : statusFilter,
       sdg_filter: sdgFilter ?? null,
+      submitter_filter: submitterFilter ?? null,
     });
 
     if (error) throw error;
