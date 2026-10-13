@@ -102,8 +102,11 @@ export default function Submit() {
       // Older drafts may contain a manually selected record type. Restore the
       // type from the automatic analysis result instead.
       setManuscriptSource(draft?.documentAnalysis?.message?.startsWith("Scanned PDF detected.") ? "ocr_scanned" : "digital");
-      setStatus(draft?.status || "idle");
-      setErrorMsg(draft?.errorMsg || "");
+      // Submission errors are transient UI feedback, not part of the saved
+      // draft. In particular, do not resurrect a stale duplicate warning
+      // after the student reloads the page.
+      setStatus("idle");
+      setErrorMsg("");
       setSuggestions(draft?.suggestions || null);
       setDocumentAnalysis(draft?.documentAnalysis || { status: "idle", message: "" });
       setDocumentChecks(draft?.documentChecks || {});
@@ -154,8 +157,6 @@ export default function Submit() {
       detachedFiles,
       manuscriptText,
       manuscriptSource,
-      status,
-      errorMsg,
       suggestions,
       documentAnalysis,
       documentChecks,
@@ -176,7 +177,7 @@ export default function Submit() {
     });
   }, [
     user?.id, draftStateOwner, hasUnsavedSubmission, form, sdgTags, files, detachedFiles, manuscriptText, manuscriptSource,
-    status, errorMsg, suggestions, documentAnalysis, documentChecks, fileErrors,
+    suggestions, documentAnalysis, documentChecks, fileErrors,
   ]);
 
   useEffect(() => {
