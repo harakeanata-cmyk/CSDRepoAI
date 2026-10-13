@@ -34,7 +34,7 @@ function buildDefaultForm(profile) {
     authors: "",
     adviser: "",
     academicYear: "",
-    semester: "1st Semester",
+    semester: "",
     program: profile?.program || "",
     keywords: "",
   };
@@ -678,9 +678,10 @@ export default function Submit() {
                 </Field>
                 <Field label="Semester">
                   <select className="input" value={form.semester} onChange={update("semester")}>
-                    <option>1st Semester</option>
-                    <option>2nd Semester</option>
-                    <option>Summer</option>
+                    <option value="">Select semester (optional)</option>
+                    <option value="1st Semester">1st Semester</option>
+                    <option value="2nd Semester">2nd Semester</option>
+                    <option value="Summer">Summer</option>
                   </select>
                 </Field>
               </div>
