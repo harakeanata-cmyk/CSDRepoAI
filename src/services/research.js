@@ -718,6 +718,20 @@ export async function reactivateResearchPaper(paper) {
   notifyResearchDataChanged();
 }
 
+/** Permanently remove an archive record after administrator confirmation. */
+export async function deleteResearchPaper(paper) {
+  const fileUrls = [paper.file_url, paper.source_code_url, paper.ieee_paper_url, paper.acm_paper_url, paper.apa_paper_url];
+  const { error } = await supabase.rpc("admin_delete_research_paper", { p_paper_id: paper.id });
+  if (error) {
+    if (error.code === "PGRST202" || /admin_delete_research_paper/i.test(error.message || "")) {
+      throw new Error("Apply supabase/migrations/20261013000100_allow_admin_research_deletion.sql in Supabase before permanently deleting archive records.");
+    }
+    throw error;
+  }
+  await removeResearchStorageFiles(fileUrls);
+  notifyResearchDataChanged();
+}
+
 export function getResearchFileUrls(fileUrl) {
   return normalizeResearchFileUrls(fileUrl);
 }

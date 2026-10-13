@@ -126,10 +126,41 @@ begin
     return old;
   end if;
 
+  if current_setting('app.allow_admin_research_delete', true) = 'on'
+    and exists (
+      select 1 from public.profiles
+      where id = auth.uid() and role = 'admin'
+    ) then
+    return old;
+  end if;
+
   raise exception 'Research papers cannot be permanently deleted directly. Use the student recycle bin for withdrawn submissions.'
     using errcode = '55000';
 end;
 $$;
+
+create or replace function public.admin_delete_research_paper(p_paper_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not exists (select 1 from public.profiles where id = auth.uid() and role = 'admin') then
+    raise exception 'Only administrators can permanently delete research records.' using errcode = '42501';
+  end if;
+
+  perform 1 from public.research_papers where id = p_paper_id for update;
+  if not found then
+    raise exception 'Research record not found. Refresh the archive and try again.' using errcode = 'P0002';
+  end if;
+
+  perform set_config('app.allow_admin_research_delete', 'on', true);
+  delete from public.research_papers where id = p_paper_id;
+end;
+$$;
+revoke all on function public.admin_delete_research_paper(uuid) from public;
+grant execute on function public.admin_delete_research_paper(uuid) to authenticated;
 drop trigger if exists research_papers_prevent_delete on research_papers;
 create trigger research_papers_prevent_delete
   before delete on research_papers
@@ -539,7 +570,8 @@ create policy "papers_update_own_or_admin" on research_papers for update
   );
 
 drop policy if exists "papers_admin_delete" on research_papers;
--- Research paper rows and their history/files are preserved; deletion is blocked by trigger below.
+create policy "papers_admin_delete" on research_papers for delete
+  using (exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin'));
 
 -- Submission logs: readable by faculty/admin, insertable by any authenticated user
 drop policy if exists "logs_select_staff" on submission_logs;

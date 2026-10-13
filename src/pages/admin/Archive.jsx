@@ -1,8 +1,8 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { FolderOpen, Archive as ArchiveIcon, Power, PowerOff, ChevronDown } from "lucide-react";
+import { FolderOpen, Archive as ArchiveIcon, Power, PowerOff, ChevronDown, Trash2 } from "lucide-react";
 import Layout from "../../components/Layout";
 import { PageHeader, EmptyState, StatGrid, StatCard } from "../../components/ui";
-import { deactivateResearchPaper, reactivateResearchPaper, getApprovedPapersWithAccounts, getResearchFileUrls } from "../../services/research";
+import { deactivateResearchPaper, reactivateResearchPaper, deleteResearchPaper, getApprovedPapersWithAccounts, getResearchFileUrls } from "../../services/research";
 import ResearchFileActions from "../../components/ResearchFileActions";
 import { normalizeAcademicYear } from "../../lib/academicYear";
 
@@ -16,6 +16,7 @@ export default function Archive() {
   const [deleteError, setDeleteError] = useState("");
   const [deletingId, setDeletingId] = useState(null);
   const [pendingDelete, setPendingDelete] = useState(null);
+  const [pendingPermanentDelete, setPendingPermanentDelete] = useState(null);
   const [expandedPaperId, setExpandedPaperId] = useState(null);
 
   useEffect(() => {
@@ -41,6 +42,22 @@ export default function Archive() {
     try {
       await deactivateResearchPaper(paper);
       setPapers((current) => current.map((item) => item.id === paper.id ? { ...item, is_active: false } : item));
+    } catch (error) {
+      setDeleteError(error.message);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  async function confirmPermanentDelete() {
+    if (!pendingPermanentDelete) return;
+    const paper = pendingPermanentDelete;
+    setPendingPermanentDelete(null);
+    setDeletingId(paper.id);
+    setDeleteError("");
+    try {
+      await deleteResearchPaper(paper);
+      setPapers((current) => current.filter((item) => item.id !== paper.id));
     } catch (error) {
       setDeleteError(error.message);
     } finally {
@@ -154,15 +171,20 @@ export default function Archive() {
                   </div>
                 </td>
                 <td data-label="Action">
-                  {p.is_active === false ? (
-                    <button type="button" className="btn btn-success btn-sm" onClick={() => handleReactivate(p)}>
-                      <Power size={13} /> Reactivate
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {p.is_active === false ? (
+                      <button type="button" className="btn btn-success btn-sm" onClick={() => handleReactivate(p)}>
+                        <Power size={13} /> Reactivate
+                      </button>
+                    ) : (
+                      <button type="button" className="btn btn-outline btn-sm" onClick={() => handleDeactivate(p)} disabled={deletingId === p.id}>
+                        <PowerOff size={13} /> Deactivate
+                      </button>
+                    )}
+                    <button type="button" className="btn btn-danger btn-sm" onClick={() => { setDeleteError(""); setPendingPermanentDelete(p); }} disabled={deletingId === p.id} aria-label={`Permanently delete ${p.title}`}>
+                      <Trash2 size={13} /> Delete
                     </button>
-                  ) : (
-                    <button type="button" className="btn btn-outline btn-sm" onClick={() => handleDeactivate(p)} disabled={deletingId === p.id}>
-                      <PowerOff size={13} /> Deactivate
-                    </button>
-                  )}
+                  </div>
                 </td>
               </tr>
               {p.source === "ocr_scanned" && expandedPaperId === p.id && (
@@ -301,6 +323,20 @@ export default function Archive() {
               <button type="button" className="btn btn-danger btn-sm" onClick={confirmDelete}>
                 <PowerOff size={13} /> Deactivate
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingPermanentDelete && (
+        <div role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPendingPermanentDelete(null); }} style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, background: "rgba(20, 33, 61, 0.52)" }}>
+          <div role="alertdialog" aria-modal="true" aria-labelledby="permanent-delete-research-title" className="card card-pad" style={{ width: "min(100%, 460px)", boxShadow: "var(--shadow-lg)" }}>
+            <h2 id="permanent-delete-research-title" style={{ fontSize: 19 }}>Delete this research record?</h2>
+            <p style={{ marginTop: 10, color: "var(--ink-700)" }}>Are you sure you want to delete <strong>{pendingPermanentDelete.title}</strong>?</p>
+            <p style={{ marginTop: 8, color: "var(--ink-700)", fontSize: 13 }}>This permanently removes the archive record and its stored research files. Students can submit the paper again after it is deleted. This cannot be undone.</p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
+              <button type="button" className="btn btn-outline btn-sm" onClick={() => setPendingPermanentDelete(null)}>Cancel</button>
+              <button type="button" className="btn btn-danger btn-sm" onClick={confirmPermanentDelete}><Trash2 size={13} /> Yes, delete permanently</button>
             </div>
           </div>
         </div>
